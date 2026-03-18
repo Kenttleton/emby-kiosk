@@ -15,19 +15,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
 import { useStore } from '../src/store';
-import { searchItems } from '../src/services/embyApi';
-import { remotePlay } from '../src/services/embyApi';
-import { EmbyItem, EmbySession } from '../src/types/emby';
+import { searchItems, remotePlay, getNextUp, getSeriesEpisodes, shuffleIds } from '../src/services/embyApi';
+import { logger } from '../src/services/logger';
+import { EmbyItem } from '../src/types/emby';
 import { SearchResultRow } from '../src/components/SearchResultRow';
-import { useEmbySocket } from '../src/hooks/useEmbySocket';
+
 import { InfoModal } from '../src/components/InfoModal';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { server, authToken, currentUser } = useStore();
-
-  const { sessions } = useEmbySocket(server?.address ?? null, authToken);
+  const { server, authToken, currentUser, sessions } = useStore();
 
   const [searchQuery, setSearchQuery]     = useState('');
   const [searchResults, setSearchResults] = useState<EmbyItem[]>([]);
@@ -37,9 +35,13 @@ export default function SearchScreen() {
   const [errorMessage, setErrorMessage]   = useState<string | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Exclude our own kiosk device and sessions with no playable media types
+  const isAdmin = currentUser?.Policy?.IsAdministrator ?? false;
+
+  // Admins see all sessions; regular users see only their own
   const playableSessions = sessions.filter((s) => {
     if (s.Client === 'EmbyKiosk') return false;
+    if (!s.SupportsRemoteControl) return false;
+    if (!isAdmin && s.UserId !== currentUser?.Id) return false;
     const types = s.Capabilities?.PlayableMediaTypes;
     if (!types) return true;
     return types.some((t) => t === 'Audio' || t === 'Video');
@@ -69,18 +71,52 @@ export default function SearchScreen() {
     }, 500);
   }, [searchQuery]);
 
-  const handlePlay = async (item: EmbyItem, startPositionTicks = 0) => {
+  const send = async (itemIds: string[], startPositionTicks = 0) => {
+    logger.debug('[Search] send', { activeSessionId, itemCount: itemIds.length, startPositionTicks });
     if (!server || !authToken || !activeSessionId) {
+      logger.warn('[Search] send blocked — no session', { server: server?.address, hasToken: !!authToken, activeSessionId });
       setErrorMessage('No target device available. Make sure a compatible device is active.');
       return;
     }
     try {
       await remotePlay(server.address, authToken, activeSessionId, {
-        ItemIds: [item.Id], PlayCommand: 'PlayNow', StartPositionTicks: startPositionTicks,
+        ItemIds: itemIds, PlayCommand: 'PlayNow', StartPositionTicks: startPositionTicks,
       });
+      logger.debug('[Search] remotePlay sent OK');
+      router.back();
     } catch (e: any) {
+      logger.error('[Search] remotePlay failed:', e);
       setErrorMessage(e?.message ?? 'Playback failed.');
     }
+  };
+
+  const handlePlay = (item: EmbyItem) => send([item.Id], 0);
+
+  const handleResume = async (item: EmbyItem) => {
+    if (!server || !authToken || !currentUser) return;
+    if (item.Type === 'Series') {
+      try {
+        const next = await getNextUp(server.address, authToken, currentUser.Id, item.Id);
+        logger.debug('[Search] nextUp', next?.Id ?? 'none');
+        if (next) {
+          await send([next.Id], next.UserData?.PlaybackPositionTicks ?? 0);
+        } else {
+          await send([item.Id], 0);
+        }
+      } catch (e: any) { setErrorMessage(e?.message ?? 'Resume failed.'); }
+    } else {
+      await send([item.Id], item.UserData?.PlaybackPositionTicks ?? 0);
+    }
+  };
+
+  const handleShuffle = async (item: EmbyItem) => {
+    if (!server || !authToken || !currentUser) return;
+    try {
+      const episodes = await getSeriesEpisodes(server.address, authToken, currentUser.Id, item.Id);
+      logger.debug('[Search] shuffle episode count:', episodes.length);
+      if (episodes.length === 0) { setErrorMessage('No episodes found.'); return; }
+      await send(shuffleIds(episodes.map((e) => e.Id)));
+    } catch (e: any) { setErrorMessage(e?.message ?? 'Shuffle failed.'); }
   };
 
   return (
@@ -180,12 +216,14 @@ export default function SearchScreen() {
             <SearchResultRow
               item={item}
               serverAddress={server?.address ?? ''}
-              onPlay={() => handlePlay(item, 0)}
+              onPlay={() => handlePlay(item)}
               onResume={
-                (item.UserData?.PlaybackPositionTicks ?? 0) > 0
-                  ? () => handlePlay(item, item.UserData!.PlaybackPositionTicks)
+                (item.Type === 'Series' ||
+                  (item.UserData?.PlaybackPositionTicks ?? 0) > 0)
+                  ? () => handleResume(item)
                   : undefined
               }
+              onShuffle={item.Type === 'Series' ? () => handleShuffle(item) : undefined}
             />
           )}
           ItemSeparatorComponent={() => <View style={styles.divider} />}

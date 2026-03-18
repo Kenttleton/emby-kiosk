@@ -53,6 +53,9 @@ export interface EmbyUser {
   ServerId: string;
   PrimaryImageTag?: string;
   HasPassword: boolean;
+  Policy?: {
+    IsAdministrator: boolean;
+  };
 }
 
 // ─── Sessions ──────────────────────────────────────────────────────────────
@@ -72,6 +75,7 @@ export interface EmbySession {
   DeviceId: string;
   ApplicationVersion: string;
   IsActive: boolean;
+  SupportsRemoteControl?: boolean;
   NowPlayingItem?: NowPlayingItem;
   PlayState?: PlayState;
   LastActivityDate: string;
@@ -161,6 +165,7 @@ export interface EmbyItem {
   UserData?: {
     PlaybackPositionTicks: number;
     PlayedPercentage?: number;
+    UnplayedItemCount?: number;
     Played: boolean;
   };
 }

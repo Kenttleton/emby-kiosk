@@ -41,12 +41,14 @@ export default function KioskScreen() {
 
   const {
     server, authToken, currentUser, serverCredentials, connectAccount,
-    clearAuth, clearSession, controlsLocked, setControlsLocked,
+    clearAuth, clearSession, controlsLocked, setControlsLocked, setSessions,
   } = useStore();
 
   const activeCredential = server ? serverCredentials[server.id]?.active : null;
 
   const { sessions, connected } = useEmbySocket(server?.address ?? null, authToken);
+
+  useEffect(() => { setSessions(sessions); }, [sessions]);
 
   useEffect(() => {
     if (server && authToken) reportCapabilities(server.address, authToken).catch(() => {});
@@ -230,6 +232,7 @@ export default function KioskScreen() {
                     onSubtitle={(i) => switchSubtitle(session.Id, i)}
                     onScrubStart={() => setPagerScrollEnabled(false)}
                     onScrubEnd={() => setPagerScrollEnabled(true)}
+                    onStall={() => showError('Playback issue', `${session.DeviceName} appears to have stalled. You may need to resume playback on the device.`, 'warning')}
                     showDeviceId={duplicateClientDevice.has(`${session.Client}|${session.DeviceName}`)}
                   />
                 </View>

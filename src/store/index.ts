@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ConnectAccount,
   EmbyServer,
+  EmbySession,
   EmbyUser,
   KnownUser,
   ServerLoginRecord,
@@ -23,6 +24,7 @@ interface Store {
   // Runtime
   hydrated:       boolean;
   controlsLocked: boolean;
+  sessions:       EmbySession[];
 
   // Actions
   setServer:          (server: EmbyServer) => void;
@@ -34,6 +36,7 @@ interface Store {
   clearSession:       () => void;
   setControlsLocked:  (locked: boolean) => void;
   setConnectAccount:  (account: ConnectAccount | null) => void;
+  setSessions:        (sessions: EmbySession[]) => void;
   hydrate:            () => Promise<void>;
 }
 
@@ -57,6 +60,7 @@ export const useStore = create<Store>((set, get) => ({
   connectAccount:    null,
   hydrated:          false,
   controlsLocked:    false,
+  sessions:          [],
 
   setServer: (server) => {
     set({ server });
@@ -158,6 +162,10 @@ export const useStore = create<Store>((set, get) => ({
   setConnectAccount: (account) => {
     set({ connectAccount: account });
     persist(get());
+  },
+
+  setSessions: (sessions) => {
+    set({ sessions });
   },
 
   hydrate: async () => {

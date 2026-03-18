@@ -27,7 +27,7 @@ import {
 import { SkipButton } from "./SkipButton";
 import { SnapPicker } from "./SnapPicker";
 import { TrackChip } from "./TrackChip";
-import { InfoModal } from "./InfoModal";
+
 import { logger } from "../services/logger";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,6 +71,7 @@ export function SessionCard({
   onSubtitle,
   onScrubStart,
   onScrubEnd,
+  onStall,
   showDeviceId,
 }: {
   session: EmbySession;
@@ -83,6 +84,7 @@ export function SessionCard({
   onSubtitle: (index: number) => void;
   onScrubStart?: () => void;
   onScrubEnd?: () => void;
+  onStall?: () => void;
   showDeviceId?: boolean;
 }) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -138,6 +140,40 @@ export function SessionCard({
     return () => clearInterval(id);
   }, []);
 
+  // Stall detection — fire onStall if position hasn't advanced for ~8 seconds while playing
+  const STALL_MS = 8000;
+  const lastPositionRef    = useRef(ps.PositionTicks ?? 0);
+  const lastAdvancedAtRef  = useRef(Date.now());
+  const stalledFiredRef    = useRef(false);
+  const stalledRef         = useRef(false);
+
+  useEffect(() => {
+    const ticks = ps.PositionTicks ?? 0;
+    if (ticks !== lastPositionRef.current) {
+      lastPositionRef.current             = ticks;
+      lastAdvancedAtRef.current           = Date.now();
+      stalledFiredRef.current             = false;
+      stalledRef.current                  = false;  // position advancing — unstall the scrubber
+      // consecutiveAdvancingRef resets/increments in the animation effect
+    }
+  }, [ps.PositionTicks]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (ps.IsPaused || stalledFiredRef.current) return;
+      if (Date.now() - lastAdvancedAtRef.current >= STALL_MS) {
+        stalledFiredRef.current             = true;
+        stalledRef.current                  = true;
+        consecutiveAdvancingRef.current     = 0;
+        scrubAnimRef.current?.stop();
+        scrubAnim.setValue(lastPositionRef.current);  // snap back to real server position
+        logger.warn('[SessionCard] playback stall detected', { sessionId: session.Id, positionTicks: ps.PositionTicks });
+        onStall?.();
+      }
+    }, 1500);
+    return () => clearInterval(id);
+  }, [ps.IsPaused, onStall]);
+
   // Track seeking in a ref so the server-update effect doesn't depend on it
   const seekingRef = useRef(seeking);
   useEffect(() => {
@@ -152,15 +188,38 @@ export function SessionCard({
     }
   }, [seeking]);
 
-  // On each server update, restart the lerp+project animation (unless seeking)
+  const prevPositionTicksRef      = useRef(ps.PositionTicks ?? 0);
+  const consecutiveAdvancingRef   = useRef(0);
+
+  // On each server update, restart the lerp+project animation (unless seeking or stalled)
   useEffect(() => {
     if (seekingRef.current) return;
+    if (stalledRef.current) return;
 
     const serverTicks = ps.PositionTicks ?? 0;
     const runtime = item.RunTimeTicks ?? 0;
     scrubAnimRef.current?.stop();
 
     if (ps.IsPaused) {
+      scrubAnim.setValue(serverTicks);
+      prevPositionTicksRef.current    = serverTicks;
+      consecutiveAdvancingRef.current = 0;
+      return;
+    }
+
+    if (serverTicks === prevPositionTicksRef.current) {
+      // Position unchanged — hold, don't project, reset run counter
+      scrubAnim.setValue(serverTicks);
+      consecutiveAdvancingRef.current = 0;
+      return;
+    }
+
+    prevPositionTicksRef.current = serverTicks;
+    consecutiveAdvancingRef.current += 1;
+
+    // Require two consecutive advancing polls before projecting forward —
+    // prevents a single hiccup-advance from kicking off a projection that snaps back
+    if (consecutiveAdvancingRef.current < 2) {
       scrubAnim.setValue(serverTicks);
       return;
     }

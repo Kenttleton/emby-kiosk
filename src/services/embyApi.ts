@@ -187,9 +187,49 @@ export async function searchItems(
     Recursive: 'true',
     Fields: 'PrimaryImageAspectRatio,BasicSyncInfo,Overview,UserData',
     Limit: '30',
-    userId,
   });
-  return request<ItemsResult>(baseUrl, `/Items?${params}`, {}, token);
+  return request<ItemsResult>(baseUrl, `/Users/${userId}/Items?${params}`, {}, token);
+}
+
+// ─── Series helpers ────────────────────────────────────────────────────────
+
+/** Next episode to watch for a series (respects watched state). */
+export async function getNextUp(
+  baseUrl: string,
+  token: string,
+  userId: string,
+  seriesId: string,
+): Promise<EmbyItem | null> {
+  const params = new URLSearchParams({ seriesId, userId, Limit: '1', Fields: 'UserData' });
+  const res = await request<ItemsResult>(baseUrl, `/Shows/NextUp?${params}`, {}, token);
+  return res.Items?.[0] ?? null;
+}
+
+/** All episodes for a series in air-date order. */
+export async function getSeriesEpisodes(
+  baseUrl: string,
+  token: string,
+  userId: string,
+  seriesId: string,
+): Promise<EmbyItem[]> {
+  const params = new URLSearchParams({
+    userId,
+    Fields: 'UserData',
+    SortBy: 'PremiereDate,SortName',
+    SortOrder: 'Ascending',
+  });
+  const res = await request<ItemsResult>(baseUrl, `/Shows/${seriesId}/Episodes?${params}`, {}, token);
+  return res.Items ?? [];
+}
+
+/** Fisher-Yates shuffle — unbiased, independent random order on every call. */
+export function shuffleIds(ids: string[]): string[] {
+  const arr = [...ids];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 // ─── Remote Control ────────────────────────────────────────────────────────

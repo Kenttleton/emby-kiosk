@@ -6,11 +6,12 @@ import { getPosterUrl } from '../services/embyApi';
 import { EmbyItem } from '../types/emby';
 import { formatDurationTicks, itemTypeLabel } from '../utils';
 
-export function SearchResultRow({ item, serverAddress, onPlay, onResume }: {
+export function SearchResultRow({ item, serverAddress, onPlay, onResume, onShuffle }: {
   item: EmbyItem;
   serverAddress: string;
   onPlay: () => void;
   onResume?: () => void;
+  onShuffle?: () => void;
 }) {
   const posterUrl = item.ImageTags?.Primary
     ? getPosterUrl(serverAddress, item.Id, item.ImageTags.Primary, 'Primary', 88)
@@ -33,8 +34,13 @@ export function SearchResultRow({ item, serverAddress, onPlay, onResume }: {
         </Text>
       </View>
       <View style={styles.searchActions}>
+        {onShuffle && (
+          <Pressable style={styles.secondaryBtn} onPress={onShuffle}>
+            <Ionicons name="shuffle" size={14} color={Colors.accent} />
+          </Pressable>
+        )}
         {onResume && (
-          <Pressable style={styles.resumeRowBtn} onPress={onResume}>
+          <Pressable style={styles.secondaryBtn} onPress={onResume}>
             <Ionicons name="play-forward" size={14} color={Colors.accent} />
           </Pressable>
         )}
@@ -57,6 +63,6 @@ const styles = StyleSheet.create({
   searchTitle: { color: Colors.textPrimary, fontSize: 14, fontWeight: '500', marginBottom: 2 },
   searchMeta: { color: Colors.textSecondary, fontSize: 12 },
   searchActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  resumeRowBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.accent },
+  secondaryBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.accent },
   playRowBtn: { backgroundColor: Colors.accent, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 });
