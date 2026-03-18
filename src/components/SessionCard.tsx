@@ -27,6 +27,8 @@ import {
 import { SkipButton } from "./SkipButton";
 import { SnapPicker } from "./SnapPicker";
 import { TrackChip } from "./TrackChip";
+import { InfoModal } from "./InfoModal";
+import { logger } from "../services/logger";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -193,7 +195,6 @@ export function SessionCard({
   const [scrubberWidth, setScrubberWidth] = useState(0);
   const [volumeValue, setVolumeValue] = useState<number | null>(null);
   const [tracksOpen, setTracksOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [backdropFailed, setBackdropFailed] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const [seriesOverview, setSeriesOverview] = useState<string | null>(null);
@@ -201,12 +202,7 @@ export function SessionCard({
   useEffect(() => { setBackdropFailed(false); setPosterFailed(false); }, [item.Id]);
 
   useEffect(() => {
-    if (
-      detailsOpen &&
-      item.Type === "Episode" &&
-      !item.Overview &&
-      item.SeriesId
-    ) {
+    if (item.Type === "Episode" && !item.Overview && item.SeriesId) {
       const { server, authToken } = useStore.getState();
       if (server && authToken) {
         getItem(server.address, authToken, item.SeriesId)
@@ -216,7 +212,7 @@ export function SessionCard({
     } else {
       setSeriesOverview(null);
     }
-  }, [detailsOpen, item.Id]);
+  }, [item.Id]);
 
   const [selectedAudio, setSelectedAudio] = useState<number | null>(null);
   // null = no explicit selection (use IsDefault), -1 = Off explicitly chosen, n = track index chosen
@@ -388,7 +384,7 @@ export function SessionCard({
   const media = normalizeMediaItem(
     item,
     serverAddress,
-    screenWidth,
+    Math.ceil(screenWidth),
     seriesOverview,
   );
 
@@ -424,7 +420,7 @@ export function SessionCard({
             source={{ uri: media.backdropUrl }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
-            onError={() => setBackdropFailed(true)}
+            onError={() => { setBackdropFailed(true); logger.warn('[SessionCard] Backdrop image failed to load:', media.backdropUrl); }}
           />
         ) : media.posterUrl && !posterFailed ? (
           <Image
@@ -890,24 +886,8 @@ export function SessionCard({
           </>
         )}
 
-        {/* Details toggle */}
-        <Pressable
-          style={styles.detailsToggle}
-          onPress={() => setDetailsOpen((v) => !v)}
-        >
-          <Text style={styles.detailsToggleText}>
-            {detailsOpen ? "Hide Details" : "Show Details"}
-          </Text>
-          <Ionicons
-            name={detailsOpen ? "chevron-up" : "chevron-down"}
-            size={14}
-            color={Colors.textMuted}
-          />
-        </Pressable>
-
         {/* Details panel */}
-        {detailsOpen && (
-          <View style={styles.detailsPanel}>
+        <View style={styles.detailsPanel}>
             <View style={styles.detailsInner}>
               {media.posterUrl && (
                 <View style={styles.detailsPosterWrapper}>
@@ -957,7 +937,6 @@ export function SessionCard({
               </View>
             </View>
           </View>
-        )}
       </View>
 
       {/* Volume modal */}
@@ -1372,7 +1351,7 @@ const styles = StyleSheet.create({
   },
   detailsToggleText: { color: Colors.textMuted, fontSize: 13 },
   detailsPanel: { paddingTop: Spacing.sm, paddingBottom: Spacing.md },
-  detailsInner: { flexDirection: "row", gap: Spacing.sm },
+  detailsInner: { flexDirection: "row", gap: Spacing.sm * 1.5 },
   detailsPosterWrapper: {
     width: 96,
     height: 144,

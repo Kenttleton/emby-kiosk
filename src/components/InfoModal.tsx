@@ -16,10 +16,25 @@ interface Props {
   title?: string;
   message: string | null;
   onDismiss: () => void;
+  /** When provided, renders a two-button confirmation layout. */
+  onConfirm?: () => void;
+  /** Label for the confirm button. Defaults to "Confirm". */
+  confirmLabel?: string;
+  /** Label for the dismiss/cancel button. Defaults to "Dismiss" (no onConfirm) or "Cancel" (with onConfirm). */
+  dismissLabel?: string;
 }
 
-export function InfoModal({ variant = 'info', title, message, onDismiss }: Props) {
+export function InfoModal({
+  variant = 'info',
+  title,
+  message,
+  onDismiss,
+  onConfirm,
+  confirmLabel = 'Confirm',
+  dismissLabel,
+}: Props) {
   const { icon, color, defaultTitle } = VARIANT_CONFIG[variant];
+  const resolvedDismissLabel = dismissLabel ?? (onConfirm ? 'Cancel' : 'Dismiss');
 
   return (
     <Modal visible={!!message} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -28,9 +43,21 @@ export function InfoModal({ variant = 'info', title, message, onDismiss }: Props
           <Ionicons name={icon} size={28} color={color} />
           <Text style={styles.title}>{title ?? defaultTitle}</Text>
           <Text style={styles.message}>{message}</Text>
-          <Pressable style={[styles.btn, { backgroundColor: color }]} onPress={onDismiss}>
-            <Text style={styles.btnText}>Dismiss</Text>
-          </Pressable>
+
+          {onConfirm ? (
+            <View style={styles.btnRow}>
+              <Pressable style={[styles.btn, styles.btnSecondary]} onPress={onDismiss}>
+                <Text style={styles.btnSecondaryText}>{resolvedDismissLabel}</Text>
+              </Pressable>
+              <Pressable style={[styles.btn, styles.btnPrimary, { backgroundColor: color }]} onPress={onConfirm}>
+                <Text style={styles.btnText}>{confirmLabel}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable style={[styles.btn, styles.btnFull, { backgroundColor: color }]} onPress={onDismiss}>
+              <Text style={styles.btnText}>{resolvedDismissLabel}</Text>
+            </Pressable>
+          )}
         </View>
       </Pressable>
     </Modal>
@@ -66,14 +93,39 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
-  btn: {
+  btnRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
     marginTop: Spacing.sm,
+    width: '100%',
+  },
+  btn: {
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnFull: {
+    alignSelf: 'stretch',
+    width: '100%',
+  },
+  btnPrimary: {
+    flex: 1,
+  },
+  btnSecondary: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   btnText: {
     color: Colors.textPrimary,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  btnSecondaryText: {
+    color: Colors.textSecondary,
     fontWeight: '600',
     fontSize: 15,
   },

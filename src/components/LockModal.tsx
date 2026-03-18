@@ -11,37 +11,47 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '../theme';
 import { authenticateByName } from '../services/embyApi';
+import { connectLogin } from '../services/connectApi';
 
 export function LockModal({
   visible,
   serverAddress,
+  username,
+  loginMethod = 'local',
+  connectEmail,
   onSuccess,
   onCancel,
 }: {
   visible: boolean;
   serverAddress: string;
+  username?: string;
+  loginMethod?: 'connect' | 'local';
+  connectEmail?: string;
   onSuccess: () => void;
   onCancel: () => void;
 }) {
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reset = () => { setUsername(''); setPassword(''); setError(null); setLoading(false); };
+  const reset = () => { setPassword(''); setError(null); setLoading(false); };
 
   const handleCancel = () => { reset(); onCancel(); };
 
   const handleUnlock = async () => {
-    if (!username.trim()) { setError('Enter your username.'); return; }
+    if (!username?.trim()) { setError('No user account found.'); return; }
     setLoading(true);
     setError(null);
     try {
-      await authenticateByName(serverAddress, username.trim(), password);
+      if (loginMethod === 'connect' && connectEmail) {
+        await connectLogin(connectEmail, password);
+      } else {
+        await authenticateByName(serverAddress, username.trim(), password);
+      }
       reset();
       onSuccess();
     } catch {
-      setError('Invalid credentials. Try again.');
+      setError('Incorrect password. Try again.');
     } finally {
       setLoading(false);
     }
@@ -55,12 +65,16 @@ export function LockModal({
             <Ionicons name="lock-closed" size={22} color={Colors.yellow} />
             <Text style={lockStyles.title}>Unlock Controls</Text>
           </View>
-          <Text style={lockStyles.subtitle}>Enter your Emby credentials to unlock.</Text>
+          <Text style={lockStyles.subtitle}>
+            {loginMethod === 'connect'
+              ? 'Enter your Emby Connect password to unlock.'
+              : 'Enter your Emby password to unlock.'}
+          </Text>
 
           <TextInput
-            style={lockStyles.input}
-            value={username}
-            onChangeText={setUsername}
+            style={[lockStyles.input, lockStyles.inputReadOnly]}
+            value={username ?? ''}
+            editable={false}
             placeholder="Username"
             placeholderTextColor={Colors.textMuted}
             autoCapitalize="none"
@@ -122,6 +136,10 @@ const lockStyles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: 12,
     color: Colors.textPrimary, fontSize: 15,
     borderWidth: 1, borderColor: Colors.border,
+  },
+  inputReadOnly: {
+    color: Colors.textMuted,
+    backgroundColor: Colors.bgElevated,
   },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm },
   errorText: { color: Colors.red, fontSize: 13, flex: 1 },

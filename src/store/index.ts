@@ -1,89 +1,139 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { EmbyServer, EmbyUser } from '../types/emby';
+import {
+  ConnectAccount,
+  EmbyServer,
+  EmbyUser,
+  KnownUser,
+  ServerLoginRecord,
+} from '../types/emby';
+import { logger } from '../services/logger';
 
-interface ServerCreds {
-  token: string;
-  user: EmbyUser;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Store {
   // Persisted
-  server: EmbyServer | null;
-  authToken: string | null;
-  currentUser: EmbyUser | null;
-  savedServers: EmbyServer[];
-  serverCredentials: Record<string, ServerCreds>; // keyed by server.id
+  server:             EmbyServer | null;
+  authToken:          string | null;
+  currentUser:        EmbyUser | null;
+  savedServers:       EmbyServer[];
+  serverCredentials:  Record<string, ServerLoginRecord>;
+  connectAccount:     ConnectAccount | null;
 
   // Runtime
-  hydrated: boolean;
+  hydrated:       boolean;
   controlsLocked: boolean;
 
   // Actions
-  setServer: (server: EmbyServer) => void;
-  setAuth: (token: string, user: EmbyUser) => void;
-  clearAuth: () => void;
-  addSavedServer: (server: EmbyServer) => void;
-  removeSavedServer: (id: string) => void;
-  switchToServer: (server: EmbyServer) => ServerCreds | null;
-  clearSession: () => void;
-  setControlsLocked: (locked: boolean) => void;
-  hydrate: () => Promise<void>;
+  setServer:          (server: EmbyServer) => void;
+  setAuth:            (token: string, user: EmbyUser, method: 'connect' | 'local') => void;
+  clearAuth:          () => void;
+  addSavedServer:     (server: EmbyServer) => void;
+  removeSavedServer:  (id: string) => void;
+  switchToServer:     (server: EmbyServer) => ServerLoginRecord | null;
+  clearSession:       () => void;
+  setControlsLocked:  (locked: boolean) => void;
+  setConnectAccount:  (account: ConnectAccount | null) => void;
+  hydrate:            () => Promise<void>;
 }
 
-const STORAGE_KEY = 'emby_kiosk_state';
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'emby_kiosk_state_v2';
+
+function upsertKnownUser(record: ServerLoginRecord, user: KnownUser): ServerLoginRecord {
+  const others = record.knownUsers.filter((u) => u.userId !== user.userId);
+  return { ...record, knownUsers: [user, ...others] };
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────────
 
 export const useStore = create<Store>((set, get) => ({
-  server: null,
-  authToken: null,
-  currentUser: null,
-  savedServers: [],
+  server:            null,
+  authToken:         null,
+  currentUser:       null,
+  savedServers:      [],
   serverCredentials: {},
-  hydrated: false,
-  controlsLocked: false,
+  connectAccount:    null,
+  hydrated:          false,
+  controlsLocked:    false,
 
   setServer: (server) => {
     set({ server });
     persist(get());
   },
 
-  setAuth: (authToken, currentUser) => {
+  setAuth: (token, user, method) => {
     const server = get().server;
-    const updated = { ...get().serverCredentials };
-    if (server) updated[server.id] = { token: authToken, user: currentUser };
-    set({ authToken, currentUser, serverCredentials: updated });
+    if (!server) return;
+
+    const knownUser: KnownUser = {
+      userId:      user.Id,
+      username:    user.Name,
+      token,
+      loginMethod: method,
+      lastLoginAt: new Date().toISOString(),
+    };
+
+    const existing = get().serverCredentials[server.id] ?? {
+      active:     null,
+      knownUsers: [],
+    };
+
+    const updated = upsertKnownUser(existing, knownUser);
+    updated.active = knownUser;
+
+    set({
+      authToken:   token,
+      currentUser: user,
+      serverCredentials: {
+        ...get().serverCredentials,
+        [server.id]: updated,
+      },
+    });
     persist(get());
   },
 
   clearAuth: () => {
     const server = get().server;
-    const updated = { ...get().serverCredentials };
-    if (server) delete updated[server.id];
-    set({ authToken: null, currentUser: null, serverCredentials: updated });
+    if (!server) return;
+
+    const existing = get().serverCredentials[server.id];
+    if (existing) {
+      set({
+        authToken:   null,
+        currentUser: null,
+        serverCredentials: {
+          ...get().serverCredentials,
+          [server.id]: { ...existing, active: null },
+        },
+      });
+    } else {
+      set({ authToken: null, currentUser: null });
+    }
     persist(get());
   },
 
-  // Clears the active session without touching stored credentials.
   clearSession: () => {
     set({ server: null, authToken: null, currentUser: null });
     persist(get());
   },
 
-  // Sets the active server and loads stored creds if available. Returns creds or null.
   switchToServer: (server) => {
-    const creds = get().serverCredentials[server.id] ?? null;
+    const record = get().serverCredentials[server.id] ?? null;
     set({
       server,
-      authToken: creds?.token ?? null,
-      currentUser: creds?.user ?? null,
+      authToken:   record?.active?.token   ?? null,
+      currentUser: record?.active ? {
+        Id:              record.active.userId,
+        Name:            record.active.username,
+        ServerId:        server.id,
+        HasPassword:     true,
+        PrimaryImageTag: undefined,
+      } : null,
     });
     persist(get());
-    return creds;
-  },
-
-  setControlsLocked: (locked) => {
-    set({ controlsLocked: locked });
-    persist(get());
+    return record;
   },
 
   addSavedServer: (server) => {
@@ -100,22 +150,33 @@ export const useStore = create<Store>((set, get) => ({
     persist(get());
   },
 
+  setControlsLocked: (locked) => {
+    set({ controlsLocked: locked });
+    persist(get());
+  },
+
+  setConnectAccount: (account) => {
+    set({ connectAccount: account });
+    persist(get());
+  },
+
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const saved = JSON.parse(raw);
         set({
-          server: saved.server ?? null,
-          authToken: saved.authToken ?? null,
-          currentUser: saved.currentUser ?? null,
-          savedServers: saved.savedServers ?? [],
+          server:            saved.server            ?? null,
+          authToken:         saved.authToken         ?? null,
+          currentUser:       saved.currentUser       ?? null,
+          savedServers:      saved.savedServers      ?? [],
           serverCredentials: saved.serverCredentials ?? {},
-          controlsLocked: saved.controlsLocked ?? false,
+          connectAccount:    saved.connectAccount    ?? null,
+          controlsLocked:    saved.controlsLocked    ?? false,
         });
       }
     } catch (e) {
-      console.warn('Failed to hydrate store:', e);
+      logger.warn('Failed to hydrate store:', e);
     } finally {
       set({ hydrated: true });
     }
@@ -126,12 +187,13 @@ function persist(state: Store) {
   AsyncStorage.setItem(
     STORAGE_KEY,
     JSON.stringify({
-      server: state.server,
-      authToken: state.authToken,
-      currentUser: state.currentUser,
-      savedServers: state.savedServers,
+      server:            state.server,
+      authToken:         state.authToken,
+      currentUser:       state.currentUser,
+      savedServers:      state.savedServers,
       serverCredentials: state.serverCredentials,
-      controlsLocked: state.controlsLocked,
+      connectAccount:    state.connectAccount,
+      controlsLocked:    state.controlsLocked,
     })
   ).catch(() => {});
 }

@@ -28,6 +28,9 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
           <Stack.Screen name="kiosk" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="connect-login" />
+          <Stack.Screen name="search" />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

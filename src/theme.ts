@@ -12,9 +12,11 @@ export const Colors = {
   accentDim:   '#162916',
 
   // Status
-  green:  '#52B54B',
-  yellow: '#E5A00D',
-  red:    '#CC2929',
+  green:     '#52B54B',
+  yellow:    '#E5A00D',
+  yellowDim: '#2A2000',
+  red:       '#CC2929',
+  redDim:    '#2A0808',
 
   // Text
   textPrimary:   '#FFFFFF',

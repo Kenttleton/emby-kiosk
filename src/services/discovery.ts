@@ -23,6 +23,7 @@ import UdpSocket from 'react-native-udp';
 import * as Network from 'expo-network';
 import { probeServer, scanSubnet } from './embyApi';
 import { EmbyServer } from '../types/emby';
+import { logger } from './logger';
 
 type DiscoveryCallback = (server: EmbyServer) => void;
 type DoneCallback = () => void;
@@ -201,7 +202,7 @@ export async function discoverServers(
 
     ]);
   } catch (e) {
-    console.warn('Discovery error:', e);
+    logger.warn('Discovery error:', e);
   } finally {
     onDone();
   }
@@ -215,7 +216,8 @@ export async function probeManualServer(
   let address = rawAddress.trim().replace(/\/$/, '');
   const urlObj = new URL(address);
   if (!urlObj.port) {
-    address = address + ':8096';
+    const defaultPort = urlObj.protocol === 'https:' ? '443' : '80';
+    address = `${urlObj.protocol}//${urlObj.hostname}:${defaultPort}${urlObj.pathname !== '/' ? urlObj.pathname : ''}`;
   }
 
   const info = await probeServer(address);

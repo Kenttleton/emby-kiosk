@@ -3,10 +3,40 @@
 export interface EmbyServer {
   id: string;
   name: string;
-  address: string; // e.g. "http://192.168.1.10:8096"
+  address: string;       // e.g. "http://192.168.1.10:8096"
   localAddress?: string;
   version?: string;
-  discovered?: boolean; // true = via SSDP, false = manually added
+  discovered?: boolean;  // true = via SSDP/GDM, false = manually added
+  /** SystemId from Emby Connect — present only on Connect-sourced servers */
+  connectServerId?: string;
+}
+
+// ─── Emby Connect ──────────────────────────────────────────────────────────
+
+export interface ConnectAccount {
+  userId: string;        // ConnectUserId — used for mismatch detection
+  accessToken: string;   // ConnectAccessToken
+  displayName: string;
+  email: string;
+}
+
+// ─── Per-server credential store ───────────────────────────────────────────
+
+export interface KnownUser {
+  userId:      string;
+  username:    string;
+  token:       string;
+  loginMethod: 'connect' | 'local';
+  lastLoginAt: string;   // ISO timestamp — sorted desc when trying auto-login
+}
+
+export interface ServerLoginRecord {
+  active:     KnownUser | null;
+  knownUsers: KnownUser[];          // all users who have ever authenticated on this server
+  /** ConnectUserId of the account that linked this server — for mismatch detection */
+  connectUserId?:    string;
+  /** AccessKey from Emby Connect — used to exchange for a local token */
+  connectAccessKey?: string;
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────

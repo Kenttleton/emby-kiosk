@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography } from '../theme';
+import { Colors, Radius, Spacing, Typography } from '../theme';
 
 function formatClock(): string {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function IdleScreen({ serverName, connected }: { serverName?: string; connected: boolean }) {
+export function IdleScreen({ serverName, connected, onSearch }: { serverName?: string; connected: boolean; onSearch?: () => void }) {
   const { height: screenHeight } = useWindowDimensions();
   const [clock, setClock] = useState(formatClock());
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -37,6 +37,12 @@ export function IdleScreen({ serverName, connected }: { serverName?: string; con
         <Text style={styles.idleSubtitle}>
           {serverName ? `Waiting for streams on ${serverName}` : 'Waiting for streams…'}
         </Text>
+        {onSearch && (
+          <Pressable style={styles.searchBtn} onPress={onSearch}>
+            <Ionicons name="search" size={16} color="#fff" />
+            <Text style={styles.searchBtnText}>Search &amp; Play</Text>
+          </Pressable>
+        )}
       </View>
       <View style={styles.idleFooter}>
         <Animated.View style={[styles.onlineDot, { backgroundColor: connected ? Colors.green : Colors.yellow, opacity: pulseAnim }]} />
@@ -55,4 +61,11 @@ const styles = StyleSheet.create({
   idleSubtitle: { ...Typography.caption, textAlign: 'center' },
   idleFooter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.lg },
   idleFooterText: { color: Colors.textMuted, fontSize: 13 },
+  searchBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.accent, borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2,
+    marginTop: Spacing.sm,
+  },
+  searchBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

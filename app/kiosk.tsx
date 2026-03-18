@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -13,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../src/theme';
 import { useStore } from '../src/store';
 import {
-  remotePlay,
   remotePlaystate,
   reportCapabilities,
   setAudioStreamIndex,
@@ -42,9 +40,11 @@ export default function KioskScreen() {
   const DRAWER_WIDTH = Math.min(screenWidth * DRAWER_WIDTH_FRAC, 400);
 
   const {
-    server, authToken, currentUser,
+    server, authToken, currentUser, serverCredentials, connectAccount,
     clearAuth, clearSession, controlsLocked, setControlsLocked,
   } = useStore();
+
+  const activeCredential = server ? serverCredentials[server.id]?.active : null;
 
   const { sessions, connected } = useEmbySocket(server?.address ?? null, authToken);
 
@@ -62,12 +62,26 @@ export default function KioskScreen() {
   const snapInterval = cardWidth + CARD_GAP;
   const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
   const [pagerScrollEnabled, setPagerScrollEnabled] = useState(true);
-  const [errorVariant, setErrorVariant] = useState<'error' | 'warning' | 'info'>('error');
-  const [errorTitle, setErrorTitle] = useState<string | undefined>(undefined);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorVariant, setErrorVariant]   = useState<'error' | 'warning' | 'info'>('error');
+  const [errorTitle, setErrorTitle]       = useState<string | undefined>(undefined);
+  const [errorMessage, setErrorMessage]   = useState<string | null>(null);
+  const [confirmLabel, setConfirmLabel]   = useState<string>('Confirm');
+  const [onConfirmCb, setOnConfirmCb]     = useState<(() => void) | undefined>(undefined);
   const showError = (title: string, msg?: string, variant: 'error' | 'warning' | 'info' = 'error') => {
     setErrorVariant(variant); setErrorTitle(title); setErrorMessage(msg ?? 'Something went wrong.');
+    setOnConfirmCb(undefined);
   };
+  const showConfirm = (
+    title: string,
+    msg: string,
+    label: string,
+    onConfirm: () => void,
+    variant: 'error' | 'warning' | 'info' = 'warning',
+  ) => {
+    setErrorVariant(variant); setErrorTitle(title); setErrorMessage(msg);
+    setConfirmLabel(label); setOnConfirmCb(() => onConfirm);
+  };
+  const dismissModal = () => { setErrorMessage(null); setOnConfirmCb(undefined); };
   const sessionScrollRef = useRef<ScrollView>(null);
 
   const activeSessionIndex = Math.max(0,
@@ -134,15 +148,12 @@ export default function KioskScreen() {
   }
 
   const handleLogout = () => {
-    Alert.alert('Sign out', 'Sign out of this server?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out', style: 'destructive', onPress: () => {
-          clearAuth();
-          router.replace('/login');
-        }
-      },
-    ]);
+    showConfirm(
+      'Sign out',
+      'Sign out of this server?',
+      'Sign out',
+      () => { clearAuth(); router.replace('/login'); },
+    );
   };
 
   return (
@@ -151,6 +162,9 @@ export default function KioskScreen() {
       <LockModal
         visible={lockModalVisible}
         serverAddress={server?.address ?? ''}
+        username={currentUser?.Name}
+        loginMethod={activeCredential?.loginMethod ?? 'local'}
+        connectEmail={connectAccount?.email}
         onSuccess={() => { setLockModalVisible(false); setControlsLocked(false); }}
         onCancel={() => setLockModalVisible(false)}
       />
@@ -159,7 +173,9 @@ export default function KioskScreen() {
         variant={errorVariant}
         title={errorTitle}
         message={errorMessage}
-        onDismiss={() => setErrorMessage(null)}
+        onDismiss={dismissModal}
+        onConfirm={onConfirmCb}
+        confirmLabel={confirmLabel}
       />
 
       <ScrollView
@@ -183,7 +199,7 @@ export default function KioskScreen() {
         />
 
         {activeSessions.length === 0 ? (
-          <IdleScreen serverName={server?.name} connected={connected} />
+          <IdleScreen serverName={server?.name} connected={connected} onSearch={() => router.push('/search')} />
         ) : (
           <>
             <ScrollView
@@ -243,23 +259,13 @@ export default function KioskScreen() {
             serverVersion={server?.version}
             connected={connected}
             sessions={sessions}
-            server={server}
-            authToken={authToken}
-            currentUser={currentUser}
             controlsLocked={controlsLocked}
             onToggleLock={handleToggleLock}
             onLogout={handleLogout}
+            onSettings={() => { closeDrawer(); router.push('/settings'); }}
+            onSearch={() => { closeDrawer(); router.push('/search'); }}
             onSwitchServer={() => { clearSession(); closeDrawer(); router.replace('/'); }}
             onClose={closeDrawer}
-            onPlay={async (item, sessionId, startPositionTicks = 0) => {
-              if (!server || !authToken) return;
-              try {
-                await remotePlay(server.address, authToken, sessionId, {
-                  ItemIds: [item.Id], PlayCommand: 'PlayNow', StartPositionTicks: startPositionTicks,
-                });
-                closeDrawer();
-              } catch (e: any) { showError('Playback error', e?.message); }
-            }}
           />
         </Animated.View>
       )}

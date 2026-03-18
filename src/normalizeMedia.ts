@@ -23,7 +23,7 @@ function resolveBackdrop(item: NowPlayingItem, serverAddress: string, width: num
     return getPosterUrl(serverAddress, item.ParentBackdropItemId, item.ParentBackdropImageTags[0], 'Backdrop', width);
   // Tag-less fallback — /Sessions omits BackdropImageTags but Emby still serves the image
   const backdropId = item.ParentBackdropItemId ?? item.Id;
-  return `${serverAddress}/emby/Items/${backdropId}/Images/Backdrop?maxWidth=${width}&quality=90`;
+  return `${serverAddress}/emby/Items/${backdropId}/Images/Backdrop?maxWidth=${Math.ceil(width)}&quality=90`;
 }
 
 function primaryUrl(serverAddress: string, item: NowPlayingItem, width = 300): string | null {

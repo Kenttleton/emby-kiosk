@@ -162,7 +162,7 @@ export function getPosterUrl(
   type: 'Primary' | 'Backdrop' | 'Thumb' = 'Primary',
   width = 300
 ): string {
-  return `${baseUrl}/emby/Items/${itemId}/Images/${type}?tag=${imageTag}&maxWidth=${width}&quality=90`;
+  return `${baseUrl}/emby/Items/${itemId}/Images/${type}?tag=${imageTag}&maxWidth=${Math.ceil(width)}&quality=90`;
 }
 
 export function getUserImageUrl(
@@ -170,7 +170,7 @@ export function getUserImageUrl(
   userId: string,
   tag: string
 ): string {
-  return `${baseUrl}/emby/Users/${userId}/Images/Primary?tag=${tag}&maxWidth=100`;
+  return `${baseUrl}/emby/Users/${userId}/Images/Primary?tag=${tag}&maxWidth=100&quality=90`;
 }
 
 // ─── Search ────────────────────────────────────────────────────────────────
