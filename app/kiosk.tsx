@@ -53,7 +53,10 @@ export default function KioskScreen() {
   useEffect(() => {
     if (server && authToken) reportCapabilities(server.address, authToken).catch(() => {});
   }, [server?.address, authToken]);
-  const activeSessions = useStableSessions(sessions.filter((s) => s.NowPlayingItem));
+  const isAdmin = currentUser?.Policy?.IsAdministrator ?? false;
+  const activeSessions = useStableSessions(
+    sessions.filter((s) => s.NowPlayingItem && (isAdmin || s.UserId === currentUser?.Id))
+  );
   const duplicateClientDevice = new Set(
     activeSessions
       .map((s) => `${s.Client}|${s.DeviceName}`)

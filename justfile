@@ -14,8 +14,17 @@ metro:
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
+# Regenerate Android/iOS native resources from app.json + assets (icons, splash, etc.)
+# Run this whenever assets/icon.png, assets/adaptive-icon.png, or app.json change
+prebuild:
+    npx expo prebuild --platform android
+
+# Regenerate resources then immediately build and install on device
+prebuild-dev: prebuild dev
+
 # Build a release APK
 release:
+    npx expo prebuild --platform android
     mkdir -p android/app/src/main/assets
     cd android && ./gradlew assembleRelease
     @echo "APK: android/app/build/outputs/apk/release/app-release.apk"
