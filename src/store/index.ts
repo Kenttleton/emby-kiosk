@@ -8,6 +8,7 @@ import {
   KnownUser,
   ServerLoginRecord,
 } from '../types/emby';
+import { UpdateInfo } from '../services/updateCheck';
 import { logger } from '../services/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -25,6 +26,9 @@ interface Store {
   hydrated:       boolean;
   controlsLocked: boolean;
   sessions:       EmbySession[];
+  updateInfo:     UpdateInfo | null;
+
+  setUpdateInfo:  (info: UpdateInfo | null) => void;
 
   // Actions
   setServer:          (server: EmbyServer) => void;
@@ -61,6 +65,7 @@ export const useStore = create<Store>((set, get) => ({
   hydrated:          false,
   controlsLocked:    false,
   sessions:          [],
+  updateInfo:        null,
 
   setServer: (server) => {
     set({ server });
@@ -166,6 +171,10 @@ export const useStore = create<Store>((set, get) => ({
 
   setSessions: (sessions) => {
     set({ sessions });
+  },
+
+  setUpdateInfo: (info) => {
+    set({ updateInfo: info });
   },
 
   hydrate: async () => {

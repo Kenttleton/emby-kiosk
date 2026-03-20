@@ -6,12 +6,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native';
 import { useStore } from '../src/store';
 import { Colors } from '../src/theme';
+import { checkForUpdate } from '../src/services/updateCheck';
 
 export default function RootLayout() {
-  const hydrate = useStore((s) => s.hydrate);
+  const hydrate       = useStore((s) => s.hydrate);
+  const setUpdateInfo = useStore((s) => s.setUpdateInfo);
 
   useEffect(() => {
     hydrate();
+    checkForUpdate().then((info) => setUpdateInfo(info));
   }, []);
 
   return (

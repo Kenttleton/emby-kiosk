@@ -1,0 +1,92 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out as much as you can — it helps a lot.
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Found in the side drawer at the bottom (e.g. v0.1.0)
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Model and OS version (e.g. Pixel 7 — Android 14, Fire HD 8 — Fire OS 8)
+      placeholder: Pixel 7 — Android 14
+    validations:
+      required: true
+
+  - type: input
+    id: emby-version
+    attributes:
+      label: Emby server version
+      description: Found in Emby's dashboard under Server → About
+      placeholder: 4.8.x
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: When I tap X, Y happens instead of Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How do we make it happen?
+      placeholder: |
+        1. Open the app
+        2. Navigate to ...
+        3. Tap ...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      placeholder: I expected it to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste any relevant log output or attach screenshots. Logs can be captured with `adb logcat` on Android.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Setup details, network configuration, or anything that might be relevant.
+    validations:
+      required: false

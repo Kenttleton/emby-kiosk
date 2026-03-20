@@ -92,8 +92,8 @@ android {
         applicationId 'com.kenttleton.embykiosk'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 100
+        versionName "0.1.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -104,15 +104,20 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            def ksFile = findProperty('RELEASE_KEYSTORE_PATH')
+            storeFile ksFile ? file(ksFile) : file('debug.keystore')
+            storePassword findProperty('RELEASE_STORE_PASSWORD') ?: 'android'
+            keyAlias findProperty('RELEASE_KEY_ALIAS') ?: 'androiddebugkey'
+            keyPassword findProperty('RELEASE_KEY_PASSWORD') ?: 'android'
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -132,23 +137,24 @@ android {
     }
 }
 
-// Apply static values from `gradle.properties` to the `android.packagingOptions`
+// Apply static values from `gradle.properties` to android.packaging
 // Accepts values in comma delimited lists, example:
 // android.packagingOptions.pickFirsts=/LICENSE,**/picasa.ini
-["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
-    // Split option: 'foo,bar' -> ['foo', 'bar']
-    def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
-    // Trim all elements in place.
-    for (i in 0..<options.size()) options[i] = options[i].trim();
-    // `[] - ""` is essentially `[""].filter(Boolean)` removing all empty strings.
-    options -= ""
+def toList = { String key ->
+    def raw = (findProperty(key) ?: "").split(",").collect { it.trim() }.findAll { it }
+    return raw
+}
+def pickFirstsList  = toList("android.packagingOptions.pickFirsts")
+def excludesList    = toList("android.packagingOptions.excludes")
+def mergesList      = toList("android.packagingOptions.merges")
+def doNotStripList  = toList("android.packagingOptions.doNotStrip")
 
-    if (options.length > 0) {
-        println "android.packagingOptions.$prop += $options ($options.length)"
-        // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
-        options.each {
-            android.packagingOptions[prop] += it
-        }
+if (pickFirstsList || excludesList || mergesList || doNotStripList) {
+    android.packaging {
+        pickFirstsList.each  { jniLibs.pickFirsts  += it }
+        excludesList.each    { resources.excludes  += it }
+        mergesList.each      { resources.merges    += it }
+        doNotStripList.each  { jniLibs.keepDebugSymbols += it }
     }
 }
 

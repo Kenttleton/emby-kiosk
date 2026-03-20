@@ -63,7 +63,7 @@ function discoverViaGdm(
       return;
     }
 
-    const timer = setTimeout(() => { socket.close(); done(); }, GDM_TIMEOUT_MS);
+    const timer = setTimeout(() => { done(); try { socket.close(); } catch { } }, GDM_TIMEOUT_MS);
 
     socket.on('message', (msg: Buffer) => {
       // Response format (one header per line):
@@ -85,21 +85,22 @@ function discoverViaGdm(
 
     socket.on('error', () => {
       clearTimeout(timer);
-      socket.close();
       done();
+      try { socket.close(); } catch { }
     });
 
     socket.bind(0, () => {
+      if (settled) return;
       try {
         socket.setBroadcast(true);
         const buf = Buffer.from(GDM_MESSAGE);
         socket.send(buf, 0, buf.length, GDM_PORT, GDM_ADDR, (error?: Error) => {
-          if (error) { clearTimeout(timer); socket.close(); done(); }
+          if (error) { clearTimeout(timer); done(); try { socket.close(); } catch { } }
         });
       } catch {
         clearTimeout(timer);
-        socket.close();
         done();
+        try { socket.close(); } catch { }
       }
     });
   });
@@ -122,7 +123,7 @@ function discoverViaSsdp(
       return;
     }
 
-    const timer = setTimeout(() => { socket.close(); done(); }, SSDP_TIMEOUT_MS);
+    const timer = setTimeout(() => { done(); try { socket.close(); } catch { } }, SSDP_TIMEOUT_MS);
 
     socket.on('message', (msg: Buffer) => {
       const text = msg.toString();
@@ -134,21 +135,22 @@ function discoverViaSsdp(
 
     socket.on('error', () => {
       clearTimeout(timer);
-      socket.close();
       done();
+      try { socket.close(); } catch { }
     });
 
     socket.bind(0, () => {
+      if (settled) return;
       try {
         socket.addMembership(SSDP_ADDR);
         const buf = Buffer.from(SSDP_SEARCH);
         socket.send(buf, 0, buf.length, SSDP_PORT, SSDP_ADDR, (error?: Error) => {
-          if (error) { clearTimeout(timer); socket.close(); done(); }
+          if (error) { clearTimeout(timer); done(); try { socket.close(); } catch { } }
         });
       } catch {
         clearTimeout(timer);
-        socket.close();
         done();
+        try { socket.close(); } catch { }
       }
     });
   });

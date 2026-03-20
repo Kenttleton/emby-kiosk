@@ -49,3 +49,24 @@ reset:
     cd android && ./gradlew clean
     rm -rf android/app/build
     npx expo start --clear
+
+# Kill Mac adb and restart to find USB debug device
+clean-usb:
+    adb kill-server
+    adb start-server
+    adb devices
+
+# ── Release ───────────────────────────────────────────────────────────────────
+
+# Bump version in app.json (just bump 0.2.0)
+bump version:
+    node scripts/bump-version.js {{version}}
+
+# Bump version, commit, and create an annotated git tag (just tag 0.1.0)
+tag version:
+    node scripts/bump-version.js {{version}}
+    git add app.json
+    git commit -m "chore: bump version to v{{version}}"
+    git tag -a "v{{version}}" -m "Release v{{version}}"
+    @echo "Tag v{{version}} created. Push with: git push && git push origin v{{version}}"
+    

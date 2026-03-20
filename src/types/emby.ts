@@ -66,6 +66,20 @@ export interface SessionCapabilities {
   SupportedCommands?: string[];
 }
 
+export interface TranscodingInfo {
+  AudioCodec?: string;
+  VideoCodec?: string;
+  Container?: string;
+  IsVideoDirect?: boolean;
+  IsAudioDirect?: boolean;
+  Bitrate?: number;
+  Width?: number;
+  Height?: number;
+  Framerate?: number;
+  DroppedFrameCount?: number;
+  TranscodeReasons?: string[];
+}
+
 export interface EmbySession {
   Id: string;
   UserId: string;
@@ -78,6 +92,7 @@ export interface EmbySession {
   SupportsRemoteControl?: boolean;
   NowPlayingItem?: NowPlayingItem;
   PlayState?: PlayState;
+  TranscodingInfo?: TranscodingInfo;
   LastActivityDate: string;
   RemoteEndPoint?: string;
   Capabilities?: SessionCapabilities;
@@ -98,13 +113,21 @@ export interface MediaStream {
   VideoRange?: string;        // 'HDR', 'SDR'
   VideoRangeType?: string;    // 'HDR10', 'DV', 'HLG', etc.
   BitRate?: number;
+  Profile?: string;           // e.g. 'Main', 'High'
+  Level?: number;             // e.g. 40 = level 4.0
+  AverageFrameRate?: number;
+  RealFrameRate?: number;
+  BitDepth?: number;
   // Audio-specific
   Channels?: number;
+  SampleRate?: number;        // e.g. 48000
 }
 
 export interface NowPlayingItem {
   Id: string;
   Name: string;
+  Container?: string;         // e.g. 'mp4', 'mkv'
+  Bitrate?: number;           // overall stream bitrate in bps
   Type: string; // "Movie", "Episode", "Audio", etc.
   SeriesName?: string;
   SeasonName?: string;

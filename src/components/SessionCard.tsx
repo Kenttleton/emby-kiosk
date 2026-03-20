@@ -48,8 +48,8 @@ export function resolutionLabel(streams: MediaStream[]): string | null {
   if (!v?.Height) return null;
   if (v.Height >= 2160) return "4K";
   if (v.Height >= 1080) return "1080p";
-  if (v.Height >= 720) return "720p";
-  return `${v.Height}p`;
+  if (v.Height >= 720) return "HD";
+  return "SD";
 }
 
 export function hdrLabel(streams: MediaStream[]): string | null {
@@ -57,6 +57,107 @@ export function hdrLabel(streams: MediaStream[]): string | null {
   if (!v?.VideoRange || v.VideoRange === "SDR") return null;
   return v.VideoRangeType ?? v.VideoRange;
 }
+
+// ─── StreamInfoPanel ──────────────────────────────────────────────────────────
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={infoStyles.row}>
+      <Text style={infoStyles.label}>{label}</Text>
+      <Text style={infoStyles.value}>{value}</Text>
+    </View>
+  );
+}
+
+function InfoSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={infoStyles.section}>
+      <Text style={infoStyles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function StreamInfoPanel({ session, streams }: { session: EmbySession; streams: MediaStream[] }) {
+  const item = session.NowPlayingItem!;
+  const ti = session.TranscodingInfo;
+  const video = streams.find((s) => s.Type === "Video");
+  const audio = streams.find((s) => s.IsDefault && s.Type === "Audio") ?? streams.find((s) => s.Type === "Audio");
+
+  const fps = video?.RealFrameRate ?? video?.AverageFrameRate;
+  const videoMethod = ti ? (ti.IsVideoDirect ? "Direct Stream" : "Transcode") : "Direct Play";
+  const audioMethod = ti ? (ti.IsAudioDirect ? "Direct Stream" : "Transcode") : "Direct Play";
+
+  return (
+    <View style={infoStyles.panel}>
+      <InfoSection title="STREAM">
+        {item.Container && <InfoRow label="Container" value={item.Container.toUpperCase()} />}
+        {item.Bitrate != null && <InfoRow label="Bitrate" value={`${Math.round(item.Bitrate / 1000)} kbps`} />}
+      </InfoSection>
+
+      {video && (
+        <InfoSection title="VIDEO">
+          {video.Codec && <InfoRow label="Codec" value={video.Codec.toUpperCase()} />}
+          {video.Profile && <InfoRow label="Profile" value={video.Profile} />}
+          {video.Level != null && <InfoRow label="Level" value={String(video.Level / 10)} />}
+          {video.Width != null && video.Height != null && (
+            <InfoRow label="Resolution" value={`W: ${video.Width}p  H: ${video.Height}p`} />
+          )}
+          {fps != null && <InfoRow label="Frame Rate" value={`${fps.toFixed(2)} fps`} />}
+          {video.BitRate != null && <InfoRow label="Bitrate" value={`${Math.round(video.BitRate / 1000)} kbps`} />}
+          {video.BitDepth != null && <InfoRow label="Bit Depth" value={`${video.BitDepth}-bit`} />}
+          <InfoRow label="Method" value={videoMethod} />
+          {ti?.DroppedFrameCount != null && ti.DroppedFrameCount > 0 && (
+            <InfoRow label="Dropped Frames" value={String(ti.DroppedFrameCount)} />
+          )}
+          {ti?.TranscodeReasons && ti.TranscodeReasons.length > 0 && (
+            <InfoRow label="Reason" value={ti.TranscodeReasons.join(", ")} />
+          )}
+        </InfoSection>
+      )}
+
+      {audio && (
+        <InfoSection title="AUDIO">
+          {audio.Codec && <InfoRow label="Codec" value={audio.Codec.toUpperCase()} />}
+          {audio.Channels != null && <InfoRow label="Channels" value={audio.Channels === 2 ? "Stereo" : audio.Channels === 1 ? "Mono" : `${audio.Channels}ch`} />}
+          {audio.SampleRate != null && <InfoRow label="Sample Rate" value={`${(audio.SampleRate / 1000).toFixed(1)} kHz`} />}
+          {audio.BitRate != null && <InfoRow label="Bitrate" value={`${Math.round(audio.BitRate / 1000)} kbps`} />}
+          <InfoRow label="Method" value={audioMethod} />
+        </InfoSection>
+      )}
+    </View>
+  );
+}
+
+const infoStyles = StyleSheet.create({
+  panel: {
+    position: "absolute",
+    top: 36,
+    left: 10,
+    backgroundColor: "rgba(15,17,23,0.92)",
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.sm,
+    zIndex: 30,
+    minWidth: 220,
+  },
+  section: { marginBottom: Spacing.sm },
+  sectionTitle: {
+    ...Typography.label,
+    color: Colors.accent,
+    marginBottom: 4,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+    paddingVertical: 1,
+    paddingLeft: Spacing.sm,
+  },
+  label: { color: Colors.textMuted, fontSize: 11 },
+  value: { color: Colors.textPrimary, fontSize: 11, fontWeight: "600", textAlign: "right", flexShrink: 1 },
+});
 
 // ─── SessionCard ──────────────────────────────────────────────────────────────
 
@@ -434,11 +535,11 @@ export function SessionCard({
   const streams = item.MediaStreams ?? [];
   const audioStreams = streams.filter((s) => s.Type === "Audio");
   const subtitleStreams = streams.filter((s) => s.Type === "Subtitle");
-  const hasTrackOptions = audioStreams.length > 1 || subtitleStreams.length > 0;
   const resolution = resolutionLabel(streams);
   const hdr = hdrLabel(streams);
-  const isDirectPlay = ps.PlayMethod === "DirectPlay";
-  const playMethodKnown = ps.PlayMethod != null;
+  const [infoOpen, setInfoOpen] = useState(false);
+  const isTranscoding = !!session.TranscodingInfo;
+  const isDirectPlay = !isTranscoding;
 
   const media = normalizeMediaItem(
     item,
@@ -508,6 +609,9 @@ export function SessionCard({
 
         {/* Quality badges */}
         <View style={styles.heroBadgesTop}>
+          <Pressable style={styles.infoBadge} onPress={() => setInfoOpen((v) => !v)}>
+            <Ionicons name="information-circle" size={22} color={infoOpen ? Colors.accent : Colors.textSecondary} />
+          </Pressable>
           {resolution && (
             <View style={styles.qualityBadge}>
               <Text style={styles.qualityBadgeText}>{resolution}</Text>
@@ -520,7 +624,7 @@ export function SessionCard({
               </Text>
             </View>
           )}
-          {playMethodKnown && (
+          {(
             <View
               style={[
                 styles.qualityBadge,
@@ -538,6 +642,9 @@ export function SessionCard({
             </View>
           )}
         </View>
+
+        {/* Stream info panel */}
+        {infoOpen && <StreamInfoPanel session={session} streams={streams} />}
 
         {/* Play state badge */}
         <Animated.View
@@ -756,23 +863,19 @@ export function SessionCard({
                 direction="forward"
                 onPress={() => skipTo(SKIP_TICKS)}
               />
-              {hasTrackOptions ? (
-                <Pressable
-                  style={[
-                    styles.secondaryBtn,
-                    tracksOpen && styles.secondaryBtnActive,
-                  ]}
-                  onPress={() => setTracksOpen((v) => !v)}
-                >
-                  <Ionicons
-                    name="options-outline"
-                    size={20}
-                    color={tracksOpen ? Colors.accent : Colors.textSecondary}
-                  />
-                </Pressable>
-              ) : (
-                <View style={{ width: 44 }} />
-              )}
+              <Pressable
+                style={[
+                  styles.secondaryBtn,
+                  tracksOpen && styles.secondaryBtnActive,
+                ]}
+                onPress={() => setTracksOpen((v) => !v)}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={20}
+                  color={tracksOpen ? Colors.accent : Colors.textSecondary}
+                />
+              </Pressable>
             </View>
 
             {/* Volume + speed + sleep — Row 2 */}
@@ -870,7 +973,7 @@ export function SessionCard({
             {/* Track pickers */}
             {tracksOpen && (
               <View style={styles.tracksPanel}>
-                {audioStreams.length > 1 && (
+                {audioStreams.length > 0 && (
                   <View style={styles.trackSection}>
                     <Text style={styles.trackLabel}>AUDIO</Text>
                     <ScrollView
@@ -888,6 +991,7 @@ export function SessionCard({
                             stream={s}
                             active={isActive}
                             onPress={() => {
+                              if (isActive) return;
                               setSelectedAudio(s.Index);
                               onAudio(s.Index);
                             }}
@@ -897,49 +1001,49 @@ export function SessionCard({
                     </ScrollView>
                   </View>
                 )}
-                {subtitleStreams.length > 0 && (
-                  <View style={styles.trackSection}>
-                    <Text style={styles.trackLabel}>SUBTITLES</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                    >
-                      <TrackChip
-                        stream={{
-                          Index: -1,
-                          Type: "Subtitle",
-                          DisplayTitle: "Off",
-                          IsDefault: false,
-                          IsExternal: false,
-                          IsForced: false,
-                        }}
-                        active={selectedSubtitle === -1}
-                        isOff
-                        onPress={() => {
-                          setSelectedSubtitle(-1);
-                          onSubtitle(-1);
-                        }}
-                      />
-                      {subtitleStreams.map((s) => {
-                        const isActive =
-                          selectedSubtitle === null
-                            ? s.IsDefault
-                            : s.Index === selectedSubtitle;
-                        return (
-                          <TrackChip
-                            key={s.Index}
-                            stream={s}
-                            active={isActive}
-                            onPress={() => {
-                              setSelectedSubtitle(s.Index);
-                              onSubtitle(s.Index);
-                            }}
-                          />
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
+                <View style={styles.trackSection}>
+                  <Text style={styles.trackLabel}>SUBTITLES</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    <TrackChip
+                      stream={{
+                        Index: -1,
+                        Type: "Subtitle",
+                        DisplayTitle: "Off",
+                        IsDefault: false,
+                        IsExternal: false,
+                        IsForced: false,
+                      }}
+                      active={selectedSubtitle === -1 || (selectedSubtitle === null && subtitleStreams.every((s) => !s.IsDefault))}
+                      isOff
+                      onPress={() => {
+                        if (selectedSubtitle === -1) return;
+                        setSelectedSubtitle(-1);
+                        onSubtitle(-1);
+                      }}
+                    />
+                    {subtitleStreams.map((s) => {
+                      const isActive =
+                        selectedSubtitle === null
+                          ? s.IsDefault
+                          : s.Index === selectedSubtitle;
+                      return (
+                        <TrackChip
+                          key={s.Index}
+                          stream={s}
+                          active={isActive}
+                          onPress={() => {
+                            if (isActive) return;
+                            setSelectedSubtitle(s.Index);
+                            onSubtitle(s.Index);
+                          }}
+                        />
+                      );
+                    })}
+                  </ScrollView>
+                </View>
               </View>
             )}
           </>
@@ -1128,6 +1232,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.yellow,
   },
   hdrBadgeText: { color: Colors.yellow },
+  infoBadge: { justifyContent: "center", alignItems: "center" },
   directBadge: {
     backgroundColor: "rgba(82,181,75,0.15)",
     borderColor: Colors.accent,

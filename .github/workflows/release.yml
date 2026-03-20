@@ -1,0 +1,178 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  # ── Android ────────────────────────────────────────────────────────────────
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Expo prebuild (Android)
+        run: npx expo prebuild --platform android --non-interactive
+
+      # ── Production signing (uncomment when store credentials are available) ──
+      # - name: Decode keystore
+      #   run: |
+      #     echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
+      #
+      # - name: Build signed release APK
+      #   run: |
+      #     mkdir -p android/app/src/main/assets
+      #     cd android && ./gradlew assembleRelease \
+      #       -PRELEASE_KEYSTORE_PATH=release.keystore \
+      #       -PRELEASE_STORE_PASSWORD="${{ secrets.ANDROID_STORE_PASSWORD }}" \
+      #       -PRELEASE_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
+      #       -PRELEASE_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
+      # ── End production signing ─────────────────────────────────────────────
+
+      - name: Build APK (debug-signed for sideloading)
+        run: |
+          mkdir -p android/app/src/main/assets
+          cd android && ./gradlew assembleRelease
+
+      - name: Rename APK
+        run: |
+          VERSION="${{ github.ref_name }}"
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             "emby-kiosk-${VERSION}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: emby-kiosk-*.apk
+
+  # ── iOS ────────────────────────────────────────────────────────────────────
+  ios:
+    name: Build iOS IPA (unsigned)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expo prebuild (iOS)
+        run: npx expo prebuild --platform ios --non-interactive
+
+      - name: Install CocoaPods
+        run: cd ios && pod install
+
+      - name: Build unsigned archive
+        run: |
+          xcodebuild \
+            -workspace ios/EmbyKiosk.xcworkspace \
+            -scheme EmbyKiosk \
+            -configuration Release \
+            -archivePath build/EmbyKiosk.xcarchive \
+            -destination generic/platform=iOS \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      # ── Production signing (uncomment when Apple credentials are available) ──
+      # - name: Decode distribution certificate
+      #   run: |
+      #     echo "${{ secrets.IOS_DIST_CERT_P12_BASE64 }}" | base64 --decode > dist_cert.p12
+      #
+      # - name: Decode provisioning profile
+      #   run: |
+      #     echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
+      #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+      #     PROFILE_UUID=$(security cms -D -i profile.mobileprovision | plutil -extract UUID raw -)
+      #     cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+      #
+      # - name: Import certificate into keychain
+      #   run: |
+      #     security create-keychain -p "${{ secrets.IOS_KEYCHAIN_PASSWORD }}" build.keychain
+      #     security default-keychain -s build.keychain
+      #     security unlock-keychain -p "${{ secrets.IOS_KEYCHAIN_PASSWORD }}" build.keychain
+      #     security import dist_cert.p12 -k build.keychain \
+      #       -P "${{ secrets.IOS_DIST_CERT_PASSWORD }}" \
+      #       -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple: \
+      #       -s -k "${{ secrets.IOS_KEYCHAIN_PASSWORD }}" build.keychain
+      #
+      # - name: Export signed IPA
+      #   run: |
+      #     cat > ExportOptions.plist << 'EOF'
+      #     <?xml version="1.0" encoding="UTF-8"?>
+      #     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      #     <plist version="1.0"><dict>
+      #       <key>method</key><string>app-store</string>
+      #       <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+      #       <key>compileBitcode</key><false/>
+      #     </dict></plist>
+      #     EOF
+      #     xcodebuild -exportArchive \
+      #       -archivePath build/EmbyKiosk.xcarchive \
+      #       -exportPath build/ipa \
+      #       -exportOptionsPlist ExportOptions.plist
+      # ── End production signing ─────────────────────────────────────────────
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH=$(find build/EmbyKiosk.xcarchive/Products -name "*.app" | head -1)
+          mkdir -p build/unsigned/Payload
+          cp -r "$APP_PATH" build/unsigned/Payload/
+          cd build/unsigned && zip -r "../../emby-kiosk-${{ github.ref_name }}-unsigned.ipa" Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: emby-kiosk-*-unsigned.ipa
+
+  # ── GitHub Release ─────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [android]   # iOS is best-effort — run independently, not a release gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+
+      - name: Download iOS artifact (if available)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ios-ipa
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') || startsWith(github.ref_name, 'v0.') }}
+          generate_release_notes: true
+          files: |
+            emby-kiosk-*.apk
+            emby-kiosk-*-unsigned.ipa

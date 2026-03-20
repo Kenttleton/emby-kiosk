@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing, Typography } from '../theme';
 import { EmbySession } from '../types/emby';
+import { downloadAndInstallApk } from '../services/updateCheck';
+import { useStore } from '../store';
 
 // ─── Action Card ──────────────────────────────────────────────────────────────
 
@@ -58,6 +63,24 @@ export function DrawerContent({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const updateInfo = useStore((s) => s.updateInfo);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const handleUpdate = async () => {
+    if (!updateInfo) return;
+    if (Platform.OS === 'android' && updateInfo.apkUrl) {
+      setDownloading(true);
+      try {
+        await downloadAndInstallApk(updateInfo.apkUrl, (p) => setDownloadProgress(p));
+      } finally {
+        setDownloading(false);
+        setDownloadProgress(0);
+      }
+    } else {
+      Linking.openURL(updateInfo.releaseUrl);
+    }
+  };
 
   return (
     <View style={[styles.drawerInner, { paddingTop: insets.top }]}>
@@ -134,6 +157,35 @@ export function DrawerContent({
 
       </ScrollView>
 
+      {/* Update banner */}
+      {updateInfo && (
+        <Pressable
+          style={styles.updateBanner}
+          onPress={handleUpdate}
+          disabled={downloading}
+        >
+          <View style={[styles.updateIconWrap]}>
+            {downloading
+              ? <ActivityIndicator size="small" color={Colors.accent} />
+              : <Ionicons name="arrow-up-circle" size={22} color={Colors.accent} />
+            }
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.updateTitle}>
+              {downloading
+                ? `Downloading… ${Math.round(downloadProgress * 100)}%`
+                : `Update available · v${updateInfo.version}`}
+            </Text>
+            <Text style={styles.updateSubtitle} numberOfLines={1}>
+              {Platform.OS === 'android' ? 'Tap to download and install' : 'Tap to open release page'}
+            </Text>
+          </View>
+          {!downloading && (
+            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+          )}
+        </Pressable>
+      )}
+
       {/* Version footer */}
       {serverVersion && (
         <View style={[styles.versionFooter, { paddingBottom: insets.bottom + Spacing.md }]}>
@@ -185,4 +237,16 @@ const styles = StyleSheet.create({
 
   versionFooter: { alignItems: 'center', paddingTop: Spacing.sm, paddingHorizontal: Spacing.md },
   versionText:   { color: Colors.textMuted, fontSize: 11 },
+
+  updateBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.md, marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: Colors.accentDim,
+    borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.accent,
+  },
+  updateIconWrap: { width: 32, alignItems: 'center', justifyContent: 'center' },
+  updateTitle:    { color: Colors.accent, fontSize: 14, fontWeight: '600' },
+  updateSubtitle: { ...Typography.caption, marginTop: 2 },
 });
