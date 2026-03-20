@@ -106,10 +106,13 @@ android {
         }
         release {
             def ksFile = findProperty('RELEASE_KEYSTORE_PATH')
-            storeFile ksFile ? file(ksFile) : file('debug.keystore')
-            storePassword findProperty('RELEASE_STORE_PASSWORD') ?: 'android'
-            keyAlias findProperty('RELEASE_KEY_ALIAS') ?: 'androiddebugkey'
-            keyPassword findProperty('RELEASE_KEY_PASSWORD') ?: 'android'
+            if (ksFile) {
+                storeFile file(ksFile)
+                storePassword findProperty('RELEASE_STORE_PASSWORD')
+                keyAlias findProperty('RELEASE_KEY_ALIAS')
+                keyPassword findProperty('RELEASE_KEY_PASSWORD')
+            }
+            // No-creds fallback: leave storeFile null → Gradle uses the auto-generated debug key
         }
     }
     buildTypes {
@@ -117,7 +120,7 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.release
+            signingConfig findProperty('RELEASE_KEYSTORE_PATH') ? signingConfigs.release : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
