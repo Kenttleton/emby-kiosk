@@ -77,10 +77,9 @@ jobs:
         run: npm ci
 
       - name: Expo prebuild (iOS)
-        run: npx expo prebuild --platform ios --non-interactive
-
-      - name: Install CocoaPods
-        run: cd ios && pod install
+        env:
+          CI: '1'
+        run: npx expo prebuild --platform ios
 
       - name: Build unsigned archive
         run: |
@@ -93,6 +92,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="kenttleton" \
             archive
 
       # ── Production signing (uncomment when Apple credentials are available) ──
