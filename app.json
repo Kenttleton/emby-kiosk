@@ -2,7 +2,7 @@
   "expo": {
     "name": "Emby Kiosk",
     "slug": "emby-kiosk",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kenttleton.embykiosk",
-      "buildNumber": "101"
+      "buildNumber": "102"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +25,7 @@
         "backgroundColor": "#0f1117"
       },
       "package": "com.kenttleton.embykiosk",
-      "versionCode": 101,
+      "versionCode": 102,
       "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.INTERNET",
