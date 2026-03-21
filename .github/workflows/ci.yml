@@ -55,7 +55,7 @@ jobs:
   # ── iOS build ───────────────────────────────────────────────────────────────
   ios:
     name: iOS debug build
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
 
@@ -83,5 +83,4 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="kenttleton" \
-            SWIFT_STRICT_CONCURRENCY=minimal \
             build

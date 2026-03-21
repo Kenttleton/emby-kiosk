@@ -64,7 +64,7 @@ jobs:
   # ── iOS ────────────────────────────────────────────────────────────────────
   ios:
     name: Build iOS IPA (unsigned)
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
 
@@ -93,7 +93,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="kenttleton" \
-            SWIFT_STRICT_CONCURRENCY=minimal \
             archive
 
       # ── Production signing (uncomment when Apple credentials are available) ──
