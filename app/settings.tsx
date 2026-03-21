@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +17,8 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
 import { logger } from '../src/services/logger';
+import { useStore } from '../src/store';
+import { downloadAndInstallApk } from '../src/services/updateCheck';
 
 // ─── Device info ──────────────────────────────────────────────────────────────
 
@@ -48,9 +52,28 @@ function getDeviceInfo(): { label: string; value: string }[] {
 export default function SettingsScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
+  const updateInfo              = useStore((s) => s.updateInfo);
+  const setIgnoredUpdateVersion = useStore((s) => s.setIgnoredUpdateVersion);
+  const [downloading, setDownloading]       = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const [logs, setLogs]             = useState<string>('');
   const [logsLoaded, setLogsLoaded] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
+
+  const handleUpdate = async () => {
+    if (!updateInfo) return;
+    if (Platform.OS === 'android' && updateInfo.apkUrl) {
+      setDownloading(true);
+      try {
+        await downloadAndInstallApk(updateInfo.apkUrl, (p) => setDownloadProgress(p));
+      } finally {
+        setDownloading(false);
+        setDownloadProgress(0);
+      }
+    } else {
+      Linking.openURL(updateInfo.releaseUrl);
+    }
+  };
 
   const deviceInfo = getDeviceInfo();
 
@@ -108,6 +131,53 @@ export default function SettingsScreen() {
               <Text style={styles.infoValue}>{value}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Update */}
+        <Text style={styles.sectionLabel}>UPDATE</Text>
+        <View style={styles.card}>
+          <View style={[styles.infoRow]}>
+            <Text style={styles.infoLabel}>Current version</Text>
+            <Text style={styles.infoValue}>{Constants.expoConfig?.version ?? '—'}</Text>
+          </View>
+          {updateInfo ? (
+            <Pressable
+              style={[styles.infoRow, styles.infoRowBorder]}
+              onPress={handleUpdate}
+              disabled={downloading}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.infoLabel, { color: Colors.accent }]}>
+                  {downloading
+                    ? `Downloading… ${Math.round(downloadProgress * 100)}%`
+                    : `v${updateInfo.version} available`}
+                </Text>
+              </View>
+              {downloading
+                ? <ActivityIndicator size="small" color={Colors.accent} />
+                : <Ionicons name="arrow-up-circle-outline" size={18} color={Colors.accent} />}
+            </Pressable>
+          ) : (
+            <View style={[styles.infoRow, styles.infoRowBorder]}>
+              <Text style={styles.infoLabel}>Latest version</Text>
+              <Text style={styles.infoValue}>Up to date</Text>
+            </View>
+          )}
+          {updateInfo && (
+            <Pressable
+              style={[styles.infoRow, styles.infoRowBorder]}
+              onPress={() => setIgnoredUpdateVersion(
+                updateInfo.version === (useStore.getState().ignoredUpdateVersion) ? null : updateInfo.version
+              )}
+            >
+              <Text style={styles.infoLabel}>Ignore this update</Text>
+              <Ionicons
+                name={updateInfo.version === (useStore.getState().ignoredUpdateVersion) ? 'checkmark-circle' : 'ellipse-outline'}
+                size={18}
+                color={Colors.textMuted}
+              />
+            </Pressable>
+          )}
         </View>
 
         {/* Log viewer */}

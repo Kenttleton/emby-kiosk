@@ -28,7 +28,9 @@ interface Store {
   sessions:       EmbySession[];
   updateInfo:     UpdateInfo | null;
 
-  setUpdateInfo:  (info: UpdateInfo | null) => void;
+  setUpdateInfo:          (info: UpdateInfo | null) => void;
+  ignoredUpdateVersion:   string | null;
+  setIgnoredUpdateVersion:(version: string | null) => void;
 
   // Actions
   setServer:          (server: EmbyServer) => void;
@@ -62,10 +64,11 @@ export const useStore = create<Store>((set, get) => ({
   savedServers:      [],
   serverCredentials: {},
   connectAccount:    null,
-  hydrated:          false,
-  controlsLocked:    false,
-  sessions:          [],
-  updateInfo:        null,
+  hydrated:             false,
+  controlsLocked:       false,
+  sessions:             [],
+  updateInfo:           null,
+  ignoredUpdateVersion: null,
 
   setServer: (server) => {
     set({ server });
@@ -177,6 +180,11 @@ export const useStore = create<Store>((set, get) => ({
     set({ updateInfo: info });
   },
 
+  setIgnoredUpdateVersion: (version) => {
+    set({ ignoredUpdateVersion: version });
+    persist(get());
+  },
+
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -188,8 +196,9 @@ export const useStore = create<Store>((set, get) => ({
           currentUser:       saved.currentUser       ?? null,
           savedServers:      saved.savedServers      ?? [],
           serverCredentials: saved.serverCredentials ?? {},
-          connectAccount:    saved.connectAccount    ?? null,
-          controlsLocked:    saved.controlsLocked    ?? false,
+          connectAccount:        saved.connectAccount        ?? null,
+          controlsLocked:        saved.controlsLocked        ?? false,
+          ignoredUpdateVersion:  saved.ignoredUpdateVersion  ?? null,
         });
       }
     } catch (e) {
@@ -209,8 +218,9 @@ function persist(state: Store) {
       currentUser:       state.currentUser,
       savedServers:      state.savedServers,
       serverCredentials: state.serverCredentials,
-      connectAccount:    state.connectAccount,
-      controlsLocked:    state.controlsLocked,
+      connectAccount:       state.connectAccount,
+      controlsLocked:       state.controlsLocked,
+      ignoredUpdateVersion: state.ignoredUpdateVersion,
     })
   ).catch(() => {});
 }

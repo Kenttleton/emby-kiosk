@@ -3,7 +3,7 @@ import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 const GITHUB_REPO = 'Kenttleton/emby-kiosk';
-const RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=1`;
 
 export interface UpdateInfo {
   version: string;         // e.g. "0.2.0"
@@ -34,7 +34,9 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     });
     if (!res.ok) return null;
 
-    const data = await res.json();
+    const releases = await res.json();
+    const data = releases[0];
+    if (!data) return null;
     const remoteVersion: string = data.tag_name ?? '';
     const localVersion: string = Constants.expoConfig?.version ?? '0.0.0';
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Constants from 'expo-constants';
 import {
   ActivityIndicator,
   Linking,
@@ -63,9 +64,22 @@ export function DrawerContent({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const updateInfo = useStore((s) => s.updateInfo);
+  const updateInfo              = useStore((s) => s.updateInfo);
+  const ignoredUpdateVersion    = useStore((s) => s.ignoredUpdateVersion);
+  const setIgnoredUpdateVersion = useStore((s) => s.setIgnoredUpdateVersion);
+  const showBanner = updateInfo && updateInfo.version !== ignoredUpdateVersion;
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+
+  // Major version bump = first segment changes (e.g. 0.x → 1.x); cannot be dismissed
+  const isMajorUpdate = updateInfo
+    ? (parseInt(updateInfo.version) ?? 0) > (parseInt(Constants.expoConfig?.version ?? '0') ?? 0)
+    : false;
+
+  const handleDismiss = () => {
+    if (!updateInfo) return;
+    setIgnoredUpdateVersion(updateInfo.version);
+  };
 
   const handleUpdate = async () => {
     if (!updateInfo) return;
@@ -158,7 +172,7 @@ export function DrawerContent({
       </ScrollView>
 
       {/* Update banner */}
-      {updateInfo && (
+      {showBanner && (
         <Pressable
           style={styles.updateBanner}
           onPress={handleUpdate}
@@ -180,7 +194,12 @@ export function DrawerContent({
               {Platform.OS === 'android' ? 'Tap to download and install' : 'Tap to open release page'}
             </Text>
           </View>
-          {!downloading && (
+          {!downloading && !isMajorUpdate && (
+            <Pressable onPress={handleDismiss} hitSlop={8}>
+              <Ionicons name="close" size={16} color={Colors.textMuted} />
+            </Pressable>
+          )}
+          {!downloading && isMajorUpdate && (
             <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
           )}
         </Pressable>
