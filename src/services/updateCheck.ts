@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 const GITHUB_REPO = 'Kenttleton/emby-kiosk';
@@ -60,30 +60,37 @@ export async function downloadAndInstallApk(
   apkUrl: string,
   onProgress: (progress: number) => void,
 ): Promise<void> {
-  const destPath = FileSystem.cacheDirectory + 'emby-kiosk-update.apk';
+  const destFile = new File(Paths.cache, 'emby-kiosk-update.apk');
 
-  // Remove stale download if present
-  const existing = await FileSystem.getInfoAsync(destPath);
-  if (existing.exists) await FileSystem.deleteAsync(destPath, { idempotent: true });
+  if (destFile.exists) destFile.delete();
 
-  const download = FileSystem.createDownloadResumable(
-    apkUrl,
-    destPath,
-    {},
-    (progress) => {
-      const pct = progress.totalBytesExpected > 0
-        ? progress.totalBytesWritten / progress.totalBytesExpected
-        : 0;
-      onProgress(pct);
-    },
-  );
+  // Stream download so we can report progress
+  const response = await fetch(apkUrl);
+  const contentLength = Number(response.headers.get('content-length') ?? 0);
+  const reader = response.body?.getReader();
 
-  await download.downloadAsync();
+  if (!reader) {
+    await File.downloadFileAsync(apkUrl, destFile, { idempotent: true });
+  } else {
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (contentLength > 0) onProgress(received / contentLength);
+    }
+    const combined = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.length; }
+    destFile.write(combined);
+  }
 
   if (Platform.OS === 'android') {
-    const { startActivityAsync, ActivityAction } = await import('expo-intent-launcher');
-    await startActivityAsync(ActivityAction.INSTALL_APP, {
-      data: destPath,
+    const { startActivityAsync } = await import('expo-intent-launcher');
+    await startActivityAsync('android.intent.action.VIEW', {
+      data: destFile.contentUri,
       flags: 1,   // FLAG_GRANT_READ_URI_PERMISSION
       type: 'application/vnd.android.package-archive',
     });

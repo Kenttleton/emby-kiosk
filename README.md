@@ -8,6 +8,7 @@
 Know what's playing, control it from anywhere in the house, and send new content to any screen — all from a single, always-on panel.
 
 [![Latest Release](https://img.shields.io/github/v/release/Kenttleton/emby-kiosk?style=flat-square&color=52b8ff)](https://github.com/Kenttleton/emby-kiosk/releases/latest)
+[![Latest Pre-release](https://img.shields.io/github/v/release/Kenttleton/emby-kiosk?include_prereleases&style=flat-square&color=orange&label=pre-release)](https://github.com/Kenttleton/emby-kiosk/releases)
 [![License](https://img.shields.io/github/license/Kenttleton/emby-kiosk?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey?style=flat-square)](https://github.com/Kenttleton/emby-kiosk/releases)
 
