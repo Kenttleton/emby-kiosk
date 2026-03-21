@@ -64,12 +64,9 @@ jobs:
   # ── iOS ────────────────────────────────────────────────────────────────────
   ios:
     name: Build iOS IPA (unsigned)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
-
-      - name: Select Xcode 16.2
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
       - uses: actions/setup-node@v5
         with:
