@@ -93,6 +93,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="kenttleton" \
+            SWIFT_STRICT_CONCURRENCY=minimal \
             archive
 
       # ── Production signing (uncomment when Apple credentials are available) ──
