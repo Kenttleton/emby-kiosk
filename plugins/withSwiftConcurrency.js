@@ -15,7 +15,14 @@ const path = require('path');
 // Lines to inject immediately before react_native_post_install
 const INJECTION = `    installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
+        # Suppress Swift 6 strict concurrency errors in third-party pods.
+        # Xcode 16+ defaults pod compilation to Swift 6 language mode, but pods
+        # like expo-modules-core are not yet fully Swift-6 compatible.
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+        swift_ver = config.build_settings['SWIFT_VERSION']
+        if swift_ver.nil? || swift_ver.to_f >= 6.0
+          config.build_settings['SWIFT_VERSION'] = '5.9'
+        end
       end
     end
 `;
