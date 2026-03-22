@@ -87,6 +87,9 @@ export function DrawerContent({
       setDownloading(true);
       try {
         await downloadAndInstallApk(updateInfo.apkUrl, (p) => setDownloadProgress(p));
+      } catch {
+        // Installer not available (e.g. "Install unknown apps" not granted) — open release page
+        Linking.openURL(updateInfo.releaseUrl);
       } finally {
         setDownloading(false);
         setDownloadProgress(0);
@@ -171,46 +174,47 @@ export function DrawerContent({
 
       </ScrollView>
 
-      {/* Update banner */}
-      {showBanner && (
-        <Pressable
-          style={styles.updateBanner}
-          onPress={handleUpdate}
-          disabled={downloading}
-        >
-          <View style={[styles.updateIconWrap]}>
-            {downloading
-              ? <ActivityIndicator size="small" color={Colors.accent} />
-              : <Ionicons name="arrow-up-circle" size={22} color={Colors.accent} />
-            }
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.updateTitle}>
+      {/* Update banner + version footer — always gets bottom safe-area padding */}
+      <View style={{ paddingBottom: insets.bottom }}>
+        {showBanner && (
+          <Pressable
+            style={styles.updateBanner}
+            onPress={handleUpdate}
+            disabled={downloading}
+          >
+            <View style={[styles.updateIconWrap]}>
               {downloading
-                ? `Downloading… ${Math.round(downloadProgress * 100)}%`
-                : `Update available · v${updateInfo.version}`}
-            </Text>
-            <Text style={styles.updateSubtitle} numberOfLines={1}>
-              {Platform.OS === 'android' ? 'Tap to download and install' : 'Tap to open release page'}
-            </Text>
-          </View>
-          {!downloading && !isMajorUpdate && (
-            <Pressable onPress={handleDismiss} hitSlop={8}>
-              <Ionicons name="close" size={16} color={Colors.textMuted} />
-            </Pressable>
-          )}
-          {!downloading && isMajorUpdate && (
-            <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-          )}
-        </Pressable>
-      )}
+                ? <ActivityIndicator size="small" color={Colors.accent} />
+                : <Ionicons name="arrow-up-circle" size={22} color={Colors.accent} />
+              }
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.updateTitle}>
+                {downloading
+                  ? `Downloading… ${Math.round(downloadProgress * 100)}%`
+                  : `Update available · v${updateInfo.version}`}
+              </Text>
+              <Text style={styles.updateSubtitle} numberOfLines={1}>
+                {Platform.OS === 'android' ? 'Tap to download and install' : 'Tap to open release page'}
+              </Text>
+            </View>
+            {!downloading && !isMajorUpdate && (
+              <Pressable onPress={handleDismiss} hitSlop={8}>
+                <Ionicons name="close" size={16} color={Colors.textMuted} />
+              </Pressable>
+            )}
+            {!downloading && isMajorUpdate && (
+              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+            )}
+          </Pressable>
+        )}
 
-      {/* Version footer */}
-      {serverVersion && (
-        <View style={[styles.versionFooter, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <Text style={styles.versionText}>{serverName} · v{serverVersion}</Text>
-        </View>
-      )}
+        {serverVersion && (
+          <View style={[styles.versionFooter, { paddingBottom: Spacing.md }]}>
+            <Text style={styles.versionText}>{serverName} · v{serverVersion}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
