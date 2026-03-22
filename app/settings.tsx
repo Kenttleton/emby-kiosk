@@ -66,6 +66,8 @@ export default function SettingsScreen() {
       setDownloading(true);
       try {
         await downloadAndInstallApk(updateInfo.apkUrl, (p) => setDownloadProgress(p));
+      } catch {
+        Linking.openURL(updateInfo.releaseUrl);
       } finally {
         setDownloading(false);
         setDownloadProgress(0);
