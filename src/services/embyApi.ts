@@ -7,6 +7,7 @@ import {
   PlayRequest,
   PlaystateCommand,
 } from '../types/emby';
+import { logger } from './logger';
 
 // ─── Device identity (stable per install) ─────────────────────────────────
 
@@ -109,7 +110,10 @@ export async function scanSubnet(
       const address = `http://${subnet}.${i}:${port}`;
       probes.push(
         probeServer(address)
-          .then(({ id, name }) => onFound(address, name, id))
+          .then(({ id, name }) => {
+            logger.debug('[Discovery] Subnet probe hit:', { address, name, id });
+            onFound(address, name, id);
+          })
           .catch(() => {})
       );
     }

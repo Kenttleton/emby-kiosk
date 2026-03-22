@@ -19,6 +19,7 @@ import { authenticateByName } from '../src/services/embyApi';
 import { exchangeToken } from '../src/services/connectApi';
 import { InfoModal } from '../src/components/InfoModal';
 import { KnownUser } from '../src/types/emby';
+import { logger } from '../src/services/logger';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -68,20 +69,23 @@ export default function LoginScreen() {
   const tryKnownUser = async (user: KnownUser) => {
     if (!server) return;
     setLoadingUser(user.userId);
+    logger.info('[Auth] Trying stored token for:', user.username);
     try {
       const res = await globalThis.fetch(`${server.address}/emby/System/Info`, {
         headers: { 'X-Emby-Token': user.token },
       });
       if (res.ok) {
+        logger.info('[Auth] Stored token valid — signed in as:', user.username);
         setAuth(user.token, { Id: user.userId, Name: user.username, ServerId: server.id, HasPassword: true }, user.loginMethod);
         router.replace('/kiosk');
         return;
       }
-      // Token expired — pre-fill username and let user re-enter password
+      logger.warn('[Auth] Stored token expired for:', user.username);
       setUsername(user.username);
       setModalTitle('Session expired');
       setModalMsg(`Your session for "${user.username}" has expired. Please enter your password again.`);
-    } catch {
+    } catch (e) {
+      logger.warn('[Auth] Stored token check failed for:', user.username, e);
       setUsername(user.username);
     } finally {
       setLoadingUser(null);
@@ -92,6 +96,7 @@ export default function LoginScreen() {
   const tryConnect = async () => {
     if (!connectAccount || !connectAccessKey) return;
     setLoading(true);
+    logger.info('[Auth] Attempting Emby Connect exchange for:', connectAccount.displayName);
     try {
       const { localUserId, accessToken } = await exchangeToken(
         server.address,
@@ -104,9 +109,11 @@ export default function LoginScreen() {
         ServerId:    server.id,
         HasPassword: false,
       };
+      logger.info('[Auth] Connect exchange successful — signed in as:', connectAccount.displayName);
       setAuth(accessToken, user, 'connect');
       router.replace('/kiosk');
     } catch (e: any) {
+      logger.error('[Auth] Connect exchange failed:', e);
       setModalTitle('Connect sign-in failed');
       setModalMsg(e?.message ?? 'Could not authenticate with Emby Connect.');
     } finally {
@@ -118,11 +125,14 @@ export default function LoginScreen() {
   const handleLocalLogin = async () => {
     if (!username.trim()) { setModalTitle('Username required'); setModalMsg('Please enter a username.'); return; }
     setLoading(true);
+    logger.info('[Auth] Local login attempt for:', username.trim());
     try {
       const result = await authenticateByName(server.address, username.trim(), password);
+      logger.info('[Auth] Local login successful for:', result.User.Name);
       setAuth(result.AccessToken, result.User, 'local');
       router.replace('/kiosk');
     } catch (e: any) {
+      logger.error('[Auth] Local login failed for:', username.trim(), e);
       setModalTitle('Login failed');
       setModalMsg(e?.message ?? 'Invalid username or password.');
     } finally {

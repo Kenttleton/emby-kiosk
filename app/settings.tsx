@@ -87,7 +87,11 @@ export default function SettingsScreen() {
 
   const handleShareLogs = async () => {
     try {
-      await Share.share({ message: logs || '(empty)' });
+      const info = getDeviceInfo()
+        .map(({ label, value }) => `${label}: ${value}`)
+        .join('\n');
+      const header = `=== App & Device Info ===\n${info}\n\n=== Logs ===\n`;
+      await Share.share({ message: header + (logs || '(empty)') });
     } catch {}
   };
 

@@ -171,12 +171,15 @@ export async function discoverServers(
     }
   };
 
+  logger.info('[Discovery] Starting — GDM, SSDP, and subnet scan');
+
   try {
     // Run GDM, SSDP, and subnet scan concurrently
     await Promise.all([
 
       // 1. GDM
       discoverViaGdm((address, id, name) => {
+        logger.info('[Discovery] GDM found server:', { name, address });
         report({ id, name, address, discovered: true });
       }),
 
@@ -187,25 +190,39 @@ export async function discoverServers(
           const url = new URL(locationUrl);
           const base = `${url.protocol}//${url.host}`;
           const info = await probeServer(base);
+          logger.info('[Discovery] SSDP found server:', { name: info.name, address: base });
           report({ id: info.id, name: info.name, address: base, version: info.version, discovered: true });
-        } catch { }
+        } catch (e) {
+          logger.warn('[Discovery] SSDP probe failed:', { locationUrl, error: e });
+        }
       }),
 
       // 3. Subnet scan fallback
       (async () => {
         try {
           const ip = await Network.getIpAddressAsync();
-          if (!ip || ip === '0.0.0.0') return;
+          if (!ip || ip === '0.0.0.0') {
+            logger.warn('[Discovery] No local IP available — skipping subnet scan');
+            return;
+          }
+          const subnet = ip.split('.').slice(0, 3).join('.') + '.0/24';
+          logger.info('[Discovery] Starting subnet scan:', subnet);
+          let subnetCount = 0;
           await scanSubnet(ip, (address, name, id) => {
+            subnetCount++;
             report({ id, name, address, discovered: true });
           });
-        } catch { }
+          logger.info('[Discovery] Subnet scan complete — found', subnetCount, 'server(s)');
+        } catch (e) {
+          logger.warn('[Discovery] Subnet scan error:', e);
+        }
       })(),
 
     ]);
   } catch (e) {
-    logger.warn('Discovery error:', e);
+    logger.warn('[Discovery] Unexpected error:', e);
   } finally {
+    logger.info('[Discovery] Done — total unique servers found:', seen.size);
     onDone();
   }
 }

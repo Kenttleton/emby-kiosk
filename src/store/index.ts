@@ -78,6 +78,7 @@ export const useStore = create<Store>((set, get) => ({
   setAuth: (token, user, method) => {
     const server = get().server;
     if (!server) return;
+    logger.info('[Store] Auth set for:', { username: user.Name, method });
 
     const knownUser: KnownUser = {
       userId:      user.Id,
@@ -109,6 +110,7 @@ export const useStore = create<Store>((set, get) => ({
   clearAuth: () => {
     const server = get().server;
     if (!server) return;
+    logger.info('[Store] Auth cleared for server:', server.name);
 
     const existing = get().serverCredentials[server.id];
     if (existing) {
@@ -127,6 +129,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   clearSession: () => {
+    logger.info('[Store] Session cleared');
     set({ server: null, authToken: null, currentUser: null });
     persist(get());
   },
@@ -150,14 +153,17 @@ export const useStore = create<Store>((set, get) => ({
 
   addSavedServer: (server) => {
     const existing = get().savedServers;
-    const updated = existing.some((s) => s.id === server.id)
+    const isUpdate = existing.some((s) => s.id === server.id);
+    const updated = isUpdate
       ? existing.map((s) => (s.id === server.id ? server : s))
       : [...existing, server];
+    logger.debug('[Store] Server', isUpdate ? 'updated' : 'added', ':', server.name);
     set({ savedServers: updated });
     persist(get());
   },
 
   removeSavedServer: (id) => {
+    logger.debug('[Store] Server removed:', id);
     set({ savedServers: get().savedServers.filter((s) => s.id !== id) });
     persist(get());
   },
@@ -200,9 +206,12 @@ export const useStore = create<Store>((set, get) => ({
           controlsLocked:        saved.controlsLocked        ?? false,
           ignoredUpdateVersion:  saved.ignoredUpdateVersion  ?? null,
         });
+        logger.debug('[Store] Hydrated — server:', saved.server?.name ?? 'none', '| user:', saved.currentUser?.Name ?? 'none');
+      } else {
+        logger.debug('[Store] No persisted state found, starting fresh');
       }
     } catch (e) {
-      logger.warn('Failed to hydrate store:', e);
+      logger.warn('[Store] Failed to hydrate store:', e);
     } finally {
       set({ hydrated: true });
     }
@@ -222,5 +231,5 @@ function persist(state: Store) {
       controlsLocked:       state.controlsLocked,
       ignoredUpdateVersion: state.ignoredUpdateVersion,
     })
-  ).catch(() => {});
+  ).catch((e) => logger.warn('[Store] Failed to persist state:', e));
 }

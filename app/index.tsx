@@ -19,6 +19,7 @@ import { discoverServers, probeManualServer } from "../src/services/discovery";
 import { authenticateByName, getPublicUsers } from "../src/services/embyApi";
 import { exchangeToken } from "../src/services/connectApi";
 import { useStore } from "../src/store";
+import { logger } from "../src/services/logger";
 
 export default function ServerScreen() {
   const insets = useSafeAreaInsets();
@@ -77,11 +78,13 @@ export default function ServerScreen() {
 
   // ── Server selection waterfall ─────────────────────────────────────────────
   const pickServer = async (s: EmbyServer) => {
+    logger.info('[Auth] Server selected:', { name: s.name, address: s.address });
     addSavedServer(s);
     const record = switchToServer(s);
 
     // 1. Active token cached — go straight to kiosk
     if (record?.active?.token) {
+      logger.info('[Auth] Active token found — navigating to kiosk');
       router.replace("/kiosk");
       return;
     }
@@ -96,12 +99,14 @@ export default function ServerScreen() {
       connectAccessKey &&
       (!serverConnectUserId || serverConnectUserId === connectAccount.userId)
     ) {
+      logger.info('[Auth] Attempting Connect token exchange for:', connectAccount.displayName);
       try {
         const { localUserId, accessToken } = await exchangeToken(
           s.address,
           connectAccount.userId,
           connectAccessKey,
         );
+        logger.info('[Auth] Connect exchange successful for:', connectAccount.displayName);
         setAuth(
           accessToken,
           {
@@ -114,8 +119,8 @@ export default function ServerScreen() {
         );
         router.replace("/kiosk");
         return;
-      } catch {
-        /* fall through */
+      } catch (e) {
+        logger.warn('[Auth] Connect exchange failed — falling through:', e);
       }
     }
 
@@ -124,11 +129,13 @@ export default function ServerScreen() {
     for (const u of knownUsers
       .slice()
       .sort((a, b) => b.lastLoginAt.localeCompare(a.lastLoginAt))) {
+      logger.info('[Auth] Trying stored token for:', u.username);
       try {
         const res = await globalThis.fetch(`${s.address}/emby/System/Info`, {
           headers: { "X-Emby-Token": u.token },
         });
         if (res.ok) {
+          logger.info('[Auth] Stored token valid — signed in as:', u.username);
           setAuth(
             u.token,
             {
@@ -142,8 +149,9 @@ export default function ServerScreen() {
           router.replace("/kiosk");
           return;
         }
-      } catch {
-        /* try next */
+        logger.warn('[Auth] Stored token expired for:', u.username);
+      } catch (e) {
+        logger.warn('[Auth] Stored token check failed for:', u.username, e);
       }
     }
 
@@ -151,16 +159,19 @@ export default function ServerScreen() {
     try {
       const users = await getPublicUsers(s.address);
       if (users.length === 1 && !users[0].HasPassword) {
+        logger.info('[Auth] Auto-signing in passwordless user:', users[0].Name);
         const result = await authenticateByName(s.address, users[0].Name, "");
+        logger.info('[Auth] Passwordless sign-in successful for:', result.User.Name);
         setAuth(result.AccessToken, result.User, "local");
         router.replace("/kiosk");
         return;
       }
-    } catch {
-      /* fall through */
+    } catch (e) {
+      logger.warn('[Auth] Passwordless user check failed:', e);
     }
 
     // 5. Manual login required
+    logger.info('[Auth] No automatic sign-in available — navigating to login screen');
     router.push("/login");
   };
 
@@ -266,6 +277,9 @@ export default function ServerScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
+        <Pressable style={styles.settingsBtn} onPress={() => router.push('/settings')}>
+          <Ionicons name="settings-outline" size={22} color={Colors.textMuted} />
+        </Pressable>
         <View style={styles.logoBlock}>
           <Image
             source={require("../assets/kiosk-logo.png")}
@@ -474,6 +488,7 @@ const styles = StyleSheet.create({
   },
 
   header: { alignItems: "center", paddingVertical: Spacing.xl },
+  settingsBtn: { position: 'absolute', top: Spacing.xl, right: 0, padding: 6 },
   logoBlock: { alignItems: "center" },
   logo: { width: 180, height: 55 },
   kioskLabel: {

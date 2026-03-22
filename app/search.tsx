@@ -63,11 +63,14 @@ export default function SearchScreen() {
     searchTimerRef.current = setTimeout(async () => {
       if (!server || !authToken || !currentUser) return;
       setSearchLoading(true);
+      logger.debug('[Search] Querying:', searchQuery);
       try {
         const res = await searchItems(server.address, authToken, currentUser.Id, searchQuery);
         setSearchResults(res.Items);
-      } catch { }
-      finally { setSearchLoading(false); }
+        logger.debug('[Search] Results:', res.Items.length, 'items for query:', searchQuery);
+      } catch (e) {
+        logger.error('[Search] Query failed:', e);
+      } finally { setSearchLoading(false); }
     }, 500);
   }, [searchQuery]);
 

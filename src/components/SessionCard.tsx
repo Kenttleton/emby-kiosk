@@ -359,7 +359,11 @@ export function SessionCard({
   const [posterFailed, setPosterFailed] = useState(false);
   const [seriesOverview, setSeriesOverview] = useState<string | null>(null);
 
-  useEffect(() => { setBackdropFailed(false); setPosterFailed(false); }, [item.Id]);
+  useEffect(() => {
+    setBackdropFailed(false);
+    setPosterFailed(false);
+    logger.debug('[SessionCard] Now playing:', { sessionId: session.Id, device: session.DeviceName, title: item.Name, itemId: item.Id });
+  }, [item.Id]);
 
   useEffect(() => {
     if (item.Type === "Episode" && !item.Overview && item.SeriesId) {
@@ -818,11 +822,13 @@ export function SessionCard({
                     onSlidingStart={() => {
                       setSeeking(true);
                       setSeekValue(sliderValue);
+                      logger.debug('[SessionCard] Scrub started', { sessionId: session.Id });
                     }}
                     onValueChange={(v) => setSeekValue(v)}
                     onSlidingComplete={(v) => {
                       setSeeking(false);
                       scrubAnim.setValue(v * (item.RunTimeTicks ?? 0));
+                      logger.debug('[SessionCard] Scrub complete', { sessionId: session.Id, fraction: v.toFixed(3) });
                       onSeek(v);
                     }}
                   />
@@ -1156,13 +1162,11 @@ export function SessionCard({
           const opt = SPEED_OPTIONS[idx];
           setPlaybackSpeed(opt.value);
           const { server, authToken } = useStore.getState();
-          if (server && authToken)
-            setPlaybackRate(
-              server.address,
-              authToken,
-              session.Id,
-              opt.value,
-            ).catch(() => {});
+          if (server && authToken) {
+            logger.debug('[Remote] Playback rate:', { sessionId: session.Id, rate: opt.value });
+            setPlaybackRate(server.address, authToken, session.Id, opt.value)
+              .catch((e) => logger.error('[Remote] Playback rate failed:', { sessionId: session.Id }, e));
+          }
           setSpeedOpen(false);
         }}
       />
