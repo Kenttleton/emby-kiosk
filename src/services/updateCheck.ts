@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
+import { logger } from './logger';
 
 const GITHUB_REPO = 'Kenttleton/emby-kiosk';
 const RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=1`;
@@ -28,19 +29,31 @@ function isNewer(remote: string, local: string): boolean {
 }
 
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  const localVersion: string = Constants.expoConfig?.version ?? '0.0.0';
+  logger.debug('[UpdateCheck] Checking for updates, local version:', localVersion);
   try {
     const res = await fetch(RELEASES_URL, {
       headers: { Accept: 'application/vnd.github+json' },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      logger.warn('[UpdateCheck] GitHub releases API returned:', res.status);
+      return null;
+    }
 
     const releases = await res.json();
     const data = releases[0];
-    if (!data) return null;
+    if (!data) {
+      logger.warn('[UpdateCheck] No releases found');
+      return null;
+    }
     const remoteVersion: string = data.tag_name ?? '';
-    const localVersion: string = Constants.expoConfig?.version ?? '0.0.0';
 
-    if (!isNewer(remoteVersion, localVersion)) return null;
+    if (!isNewer(remoteVersion, localVersion)) {
+      logger.debug('[UpdateCheck] Up to date:', localVersion);
+      return null;
+    }
+
+    logger.info('[UpdateCheck] Update available:', { local: localVersion, remote: remoteVersion });
 
     const assets: { name: string; browser_download_url: string }[] = data.assets ?? [];
     const apkAsset = assets.find((a) => a.name.endsWith('.apk'));
@@ -53,7 +66,8 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
       ipaUrl: ipaAsset?.browser_download_url ?? null,
       releaseNotes: data.body ?? null,
     };
-  } catch {
+  } catch (e) {
+    logger.warn('[UpdateCheck] Failed to check for updates:', e);
     return null;
   }
 }
@@ -65,6 +79,8 @@ export async function downloadAndInstallApk(
   const destFile = new File(Paths.cache, 'emby-kiosk-update.apk');
 
   if (destFile.exists) destFile.delete();
+
+  logger.info('[UpdateCheck] Downloading APK:', apkUrl);
 
   // Stream download so we can report progress
   const response = await fetch(apkUrl);
@@ -88,6 +104,8 @@ export async function downloadAndInstallApk(
     for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.length; }
     destFile.write(combined);
   }
+
+  logger.info('[UpdateCheck] Download complete, launching installer');
 
   if (Platform.OS === 'android') {
     const { startActivityAsync } = await import('expo-intent-launcher');

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DEVICE_ID } from '../services/embyApi';
 import { EmbySession } from '../types/emby';
+import { logger } from '../services/logger';
 
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_DELAY_MS = 30000;
@@ -49,13 +50,17 @@ export function useEmbySocket(
         .replace(/^http:\/\//, 'ws://');
 
       const url = `${wsUrl}/embywebsocket?api_key=${token}&deviceId=${DEVICE_ID}`;
+      const safeUrl = `${wsUrl}/embywebsocket?api_key={redacted}&deviceId=${DEVICE_ID}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
+
+      logger.debug('[WebSocket] Connecting:', safeUrl);
 
       ws.onopen = () => {
         if (unmountedRef.current) { ws.close(); return; }
         setConnected(true);
         reconnectDelayRef.current = RECONNECT_DELAY_MS;
+        logger.info('[WebSocket] Connected:', safeUrl);
         // Subscribe to session updates: 0ms initial delay, 1500ms interval
         ws.send(JSON.stringify({ MessageType: 'SessionsStart', Data: '0,1500' }));
       };
@@ -69,7 +74,9 @@ export function useEmbySocket(
           } else if (msg.MessageType === 'ForceKeepAlive') {
             ws.send(JSON.stringify({ MessageType: 'KeepAlive' }));
           }
-        } catch { }
+        } catch (e) {
+          logger.error('[WebSocket] Failed to parse message:', e);
+        }
       };
 
       ws.onerror = () => {
@@ -79,6 +86,7 @@ export function useEmbySocket(
       ws.onclose = () => {
         if (unmountedRef.current) return;
         setConnected(false);
+        logger.warn('[WebSocket] Disconnected — reconnecting in', reconnectDelayRef.current, 'ms');
         // Exponential backoff
         const delay = reconnectDelayRef.current;
         reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY_MS);

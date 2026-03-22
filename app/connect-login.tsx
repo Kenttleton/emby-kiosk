@@ -47,6 +47,7 @@ export default function ConnectLoginScreen() {
         account.userId,
         account.accessToken,
       );
+      logger.info('[ConnectLogin] Signed in as:', account.displayName, '— servers found:', servers.length);
       servers.forEach((s) => addSavedServer(s));
       setConnectAccount(account);
       router.back();

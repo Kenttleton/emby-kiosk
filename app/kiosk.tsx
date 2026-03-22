@@ -26,6 +26,7 @@ import { KioskHeader } from '../src/components/KioskHeader';
 import { IdleScreen } from '../src/components/IdleScreen';
 import { SessionCard } from '../src/components/SessionCard';
 import { DrawerContent } from '../src/components/DrawerContent';
+import { logger } from '../src/services/logger';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -131,25 +132,34 @@ export default function KioskScreen() {
   // ── Session commands ─────────────────────────────────────────────────────────
   async function sendCommand(sessionId: string, command: 'PlayPause' | 'Stop') {
     if (!server || !authToken) return;
-    try { await remotePlaystate(server.address, authToken, sessionId, command); } catch { }
+    logger.debug('[Remote] Command:', { sessionId, command });
+    try { await remotePlaystate(server.address, authToken, sessionId, command); }
+    catch (e) { logger.error('[Remote] Command failed:', { sessionId, command }, e); }
   }
   async function seekTo(sessionId: string, fraction: number, runtimeTicks: number) {
     if (!server || !authToken || !runtimeTicks) return;
-    try { await remotePlaystate(server.address, authToken, sessionId, 'Seek', Math.round(fraction * runtimeTicks)); } catch { }
+    const ticks = Math.round(fraction * runtimeTicks);
+    logger.debug('[Remote] Seek:', { sessionId, ticks });
+    try { await remotePlaystate(server.address, authToken, sessionId, 'Seek', ticks); }
+    catch (e) { logger.error('[Remote] Seek failed:', { sessionId }, e); }
   }
   async function sendVolume(sessionId: string, vol: number) {
     if (!server || !authToken) return;
-    try { await setVolume(server.address, authToken, sessionId, vol); } catch { }
+    logger.debug('[Remote] Volume:', { sessionId, vol });
+    try { await setVolume(server.address, authToken, sessionId, vol); }
+    catch (e) { logger.error('[Remote] Volume failed:', { sessionId }, e); }
   }
   async function switchAudio(sessionId: string, index: number) {
     if (!server || !authToken) return;
+    logger.debug('[Remote] Audio stream:', { sessionId, index });
     try { await setAudioStreamIndex(server.address, authToken, sessionId, index); }
-    catch (e: any) { showError('Error', e?.message); }
+    catch (e: any) { logger.error('[Remote] Audio stream failed:', { sessionId, index }, e); showError('Error', e?.message); }
   }
   async function switchSubtitle(sessionId: string, index: number) {
     if (!server || !authToken) return;
+    logger.debug('[Remote] Subtitle stream:', { sessionId, index });
     try { await setSubtitleStreamIndex(server.address, authToken, sessionId, index); }
-    catch (e: any) { showError('Error', e?.message); }
+    catch (e: any) { logger.error('[Remote] Subtitle stream failed:', { sessionId, index }, e); showError('Error', e?.message); }
   }
 
   const handleLogout = () => {

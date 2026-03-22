@@ -64,7 +64,7 @@ function log(level: Level, message: string, ...args: unknown[]): void {
       case 'WARN':  console.warn(entry);  break;
       case 'ERROR': console.error(entry); break;
     }
-  } else {
+  } else if (level !== 'DEBUG') {
     enqueue(entry);
   }
 }
